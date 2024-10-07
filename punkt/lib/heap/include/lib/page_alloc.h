@@ -12,7 +12,7 @@
 #include <lk/compiler.h>
 #include <vm/vm.h>
 
-/* A simple page-aligned wrapper around the pmm or novm implementation of
+/* A simple page-aligned wrapper around the pmm implementation of
  * the underlying physical page allocator. Used by system heaps or any
  * other user that wants pages of memory but doesn't want to use LK
  * specific apis.
