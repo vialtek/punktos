@@ -117,7 +117,6 @@ static void x86_cpu_detect(void) {
 
     // detect and populate the x86_model structure
     if (max_cpuid_leaf >= 1) {
-        uint32_t a, b, c, d;
         cpuid(X86_CPUID_MODEL_FEATURES, &a, &b, &c, &d);
 
         LTRACEF("cpuid leaf 1: %#x %#x %#x %#x\n", a, b, c, d);
