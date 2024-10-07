@@ -16,7 +16,7 @@
 #include <kernel/spinlock.h>
 #include <dev/bus/pci.h>
 #include <lk/trace.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #include "../pci_priv.h"
 

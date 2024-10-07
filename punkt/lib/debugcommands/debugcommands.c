@@ -18,7 +18,7 @@
 #include <kernel/thread.h>
 #include <arch.h>
 #include <lk/console_cmd.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 static int cmd_display_mem(int argc, const console_cmd_args *argv);
 static int cmd_modify_mem(int argc, const console_cmd_args *argv);

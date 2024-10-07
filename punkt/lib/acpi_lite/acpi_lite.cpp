@@ -14,7 +14,7 @@
 #include <lk/debug.h>
 #include <lk/err.h>
 #include <lk/trace.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #define LOCAL_TRACE 0
 

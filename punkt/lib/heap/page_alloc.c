@@ -13,7 +13,7 @@
 #include <string.h>
 #include <lk/trace.h>
 #include <lk/console_cmd.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 /* A simple page-aligned wrapper around the pmm or novm implementation of
  * the underlying physical page allocator. Used by system heaps or any

@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <lk/compiler.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 /* A simple page-aligned wrapper around the pmm or novm implementation of
  * the underlying physical page allocator. Used by system heaps or any

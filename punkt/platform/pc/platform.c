@@ -25,7 +25,7 @@
 #include <string.h>
 #include <assert.h>
 #include <inttypes.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <lib/acpi_lite.h>
 
 #if WITH_DEV_BUS_PCI

@@ -19,7 +19,7 @@
 #include <arch/riscv.h>
 #include <arch/riscv/csr.h>
 #include <arch/riscv/sbi.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #include "riscv_priv.h"
 

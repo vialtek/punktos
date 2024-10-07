@@ -13,7 +13,7 @@
 #include <dev/uart.h>
 #include <arch.h>
 #include <lk/init.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <kernel/spinlock.h>
 #include <dev/timer/arm_generic.h>
 #include <platform.h>

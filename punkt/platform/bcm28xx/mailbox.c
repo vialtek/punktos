@@ -13,7 +13,7 @@
 #include <arch.h>
 #include <platform.h>
 #include <arch/ops.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <dev/display.h>
 
 #include <platform/bcm28xx.h>

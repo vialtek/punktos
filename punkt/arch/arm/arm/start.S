@@ -8,7 +8,7 @@
 #include <lk/asm.h>
 #include <arch/arm/cores.h>
 #include <arch/arm/mmu.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 .section ".text.boot"
 .globl _start

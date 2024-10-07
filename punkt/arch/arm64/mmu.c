@@ -11,7 +11,7 @@
 #include <lk/bits.h>
 #include <lk/debug.h>
 #include <lk/err.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <lib/heap.h>
 #include <stdlib.h>
 #include <string.h>

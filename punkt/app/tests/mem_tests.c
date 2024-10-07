@@ -14,7 +14,7 @@
 #include <lk/console_cmd.h>
 #include <platform.h>
 #include <lk/debug.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 static void mem_test_fail(void *ptr, uint32_t should, uint32_t is) {
     printf("ERROR at %p: should be 0x%x, is 0x%x\n", ptr, should, is);

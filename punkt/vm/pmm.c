@@ -5,7 +5,7 @@
  * license that can be found in the LICENSE file or at
  * https://opensource.org/licenses/MIT
  */
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #include <assert.h>
 #include <kernel/mutex.h>

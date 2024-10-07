@@ -7,7 +7,7 @@
  */
 #pragma once
 
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <stdint.h>
 #include <sys/types.h>
 

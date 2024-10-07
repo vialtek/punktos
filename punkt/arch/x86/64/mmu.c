@@ -14,7 +14,7 @@
 #include <arch/x86/feature.h>
 #include <arch/x86/mmu.h>
 #include <assert.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <lk/compiler.h>
 #include <lk/debug.h>
 #include <lk/err.h>

@@ -20,7 +20,7 @@
 #include <lib/pktbuf.h>
 #include <lib/pool.h>
 #include <lk/init.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #define LOCAL_TRACE 0
 

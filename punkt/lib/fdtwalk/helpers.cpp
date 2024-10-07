@@ -15,7 +15,7 @@
 #include <lk/trace.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #if ARCH_RISCV
 #include <arch/riscv.h>
 #include <arch/riscv/feature.h>

@@ -19,7 +19,7 @@
 #include <kernel/event.h>
 #include <kernel/mutex.h>
 #include <dev/display.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #include "virtio_gpu.h"
 

@@ -16,7 +16,7 @@
 #include <arch/x86/feature.h>
 #include <arch/fpu.h>
 #include <arch/mmu.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <platform.h>
 #include <sys/types.h>
 #include <string.h>

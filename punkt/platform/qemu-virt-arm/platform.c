@@ -20,7 +20,7 @@
 #include <dev/virtio/net.h>
 #include <lib/fdtwalk.h>
 #include <lk/init.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <kernel/spinlock.h>
 #include <platform.h>
 #include <platform/gic.h>

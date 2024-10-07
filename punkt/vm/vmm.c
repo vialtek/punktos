@@ -7,7 +7,7 @@
  */
 #include <assert.h>
 #include <kernel/mutex.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <lk/console_cmd.h>
 #include <lk/err.h>
 #include <lk/trace.h>

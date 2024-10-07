@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #define LOCAL_TRACE 0
 

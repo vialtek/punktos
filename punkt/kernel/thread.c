@@ -31,7 +31,7 @@
 #include <printf.h>
 #include <string.h>
 #include <target.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #if THREAD_STATS
 struct thread_stats thread_stats[SMP_MAX_CPUS];

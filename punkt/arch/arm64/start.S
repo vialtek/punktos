@@ -1,7 +1,7 @@
 #include <lk/asm.h>
 #include <arch/arm64/mmu.h>
 #include <arch/asm_macros.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 /*
  * Register use:

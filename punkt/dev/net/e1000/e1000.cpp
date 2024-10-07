@@ -14,7 +14,7 @@
 #include <dev/bus/pci.h>
 #include <kernel/event.h>
 #include <kernel/thread.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <lib/minip.h>
 #include <lib/pktbuf.h>
 #include <string.h>

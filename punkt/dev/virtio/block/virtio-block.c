@@ -19,7 +19,7 @@
 #include <kernel/mutex.h>
 #include <lib/bio.h>
 #include <inttypes.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #define LOCAL_TRACE 0
 

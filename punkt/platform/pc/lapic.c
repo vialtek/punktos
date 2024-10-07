@@ -20,7 +20,7 @@
 #include <kernel/spinlock.h>
 #include "platform_p.h"
 #include <platform/pc.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #define LOCAL_TRACE 0
 

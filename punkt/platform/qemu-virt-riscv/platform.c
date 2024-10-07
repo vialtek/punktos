@@ -26,7 +26,7 @@
 #if WITH_LIB_MINIP
 #include <lib/minip.h>
 #endif
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include "platform_p.h"
 
 #define LOCAL_TRACE 0

@@ -26,7 +26,7 @@
 #include <platform.h>
 #include <target.h>
 #include <kernel/thread.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #define LOCAL_TRACE 0
 

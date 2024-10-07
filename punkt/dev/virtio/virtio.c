@@ -20,7 +20,7 @@
 #include <lk/init.h>
 #include <kernel/thread.h>
 #include <platform/interrupts.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #include "virtio_priv.h"
 

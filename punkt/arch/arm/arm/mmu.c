@@ -19,7 +19,7 @@
 #include <arch/mmu.h>
 #include <arch/arm.h>
 #include <arch/arm/mmu.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 
 #define LOCAL_TRACE 0
 #define TRACE_CONTEXT_SWITCH 0

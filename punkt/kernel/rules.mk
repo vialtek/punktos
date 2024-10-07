@@ -5,7 +5,8 @@ MODULE := $(LOCAL_DIR)
 MODULE_DEPS := \
 	lib/libc \
 	lib/debug \
-	lib/heap
+	lib/heap \
+	vm
 
 MODULE_SRCS := \
 	$(LOCAL_DIR)/debug.c \
@@ -17,9 +18,6 @@ MODULE_SRCS := \
 	$(LOCAL_DIR)/semaphore.c \
 	$(LOCAL_DIR)/mp.c \
 	$(LOCAL_DIR)/port.c
-
-
-MODULE_DEPS += kernel/vm
 
 MODULE_OPTIONS := extra_warnings
 
