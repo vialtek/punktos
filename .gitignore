@@ -1,0 +1,9 @@
+*.dSYM
+*.orig
+*.swp
+*~
+.cache
+.clangd
+build-*
+local.mk
+toolchain
