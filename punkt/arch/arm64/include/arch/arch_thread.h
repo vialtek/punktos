@@ -18,6 +18,11 @@ struct fpstate {
 
 struct arch_thread {
     vaddr_t sp;
+
+    /* if non-NULL, address to return to on data fault */
+    void *data_fault_resume;
+
+    /* saved fpu state */
     struct fpstate fpstate;
 };
 
