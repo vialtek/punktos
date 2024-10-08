@@ -2,6 +2,9 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
+MODULE_DEPS += \
+    lib/user_copy
+
 MODULE_SRCS += \
 	$(LOCAL_DIR)/bootalloc.c \
 	$(LOCAL_DIR)/pmm.c \
