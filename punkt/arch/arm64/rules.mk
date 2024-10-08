@@ -80,6 +80,9 @@ ARCH_COMPILEFLAGS += -fno-omit-frame-pointer
 ARCH_COMPILEFLAGS_NOFLOAT := -mgeneral-regs-only
 ARCH_COMPILEFLAGS_FLOAT :=
 
+# user space linker script
+USER_LINKER_SCRIPT := $(LOCAL_DIR)/user.ld
+
 ARCH_LDFLAGS += -z max-page-size=4096
 
 LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) -print-libgcc-file-name)

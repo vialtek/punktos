@@ -83,6 +83,7 @@ ARCH_OPTFLAGS := -O2
 LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) -print-libgcc-file-name)
 $(warning LIBGCC = $(LIBGCC))
 
+USER_LINKER_SCRIPT := $(SUBARCH_DIR)/user.ld
 LINKER_SCRIPT += $(SUBARCH_BUILDDIR)/kernel.ld
 
 # potentially generated files that should be cleaned out with clean make rule
