@@ -34,6 +34,7 @@ MODULE_SRCS += \
 	$(SUBARCH_DIR)/exceptions.S \
 	$(SUBARCH_DIR)/mmu.c \
 	$(SUBARCH_DIR)/ops.S \
+	$(SUBARCH_DIR)/user_copy.S \
 \
 	$(LOCAL_DIR)/arch.c \
 	$(LOCAL_DIR)/cache.c \
@@ -42,6 +43,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/feature.c \
 	$(LOCAL_DIR)/gdt.S \
 	$(LOCAL_DIR)/thread.c \
+	$(LOCAL_DIR)/user_copy.c \
 
 GLOBAL_DEFINES += \
 	X86_WITH_FPU=1
