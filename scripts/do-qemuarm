@@ -29,7 +29,7 @@ function HELP {
     echo "-d <disk image>   : a virtio disk device"
     echo "-n                : a virtio network device"
     echo "-t                : a virtio tap network device"
-    echo "-g                : a virtio display"
+    echo "-g                : disable a virtio display"
     echo
     echo "-h for help"
     echo "all arguments after -- are passed to qemu directly"
@@ -41,7 +41,7 @@ DO_NET_TAP=0
 DO_DISK=0
 DO_DISK_IMAGE=""
 DO_64BIT=1
-DO_DISPLAY=0
+DO_DISPLAY=1
 SMP=1
 MEMSIZE=512
 SUDO=""
@@ -50,7 +50,7 @@ PROJECT=""
 while getopts cd:ghkm:Mnt36vp:s:f: FLAG; do
     case $FLAG in
         d) DO_DISK=1; DISK_IMAGE=$OPTARG;;
-        g) DO_DISPLAY=1;;
+        g) DO_DISPLAY=0;;
         n) DO_NET=1;;
         t) DO_NET_TAP=1;;
         3) DO_64BIT=0;;

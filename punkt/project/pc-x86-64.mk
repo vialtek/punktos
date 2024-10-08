@@ -5,6 +5,6 @@ SUBARCH := x86-64
 TARGET := pc-x86
 
 MODULES += \
-	app/shell \
+	app/shell
 
 include project/virtual/test.mk
