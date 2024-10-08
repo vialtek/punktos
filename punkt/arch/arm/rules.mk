@@ -121,7 +121,8 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/arm/ops.S \
 	$(LOCAL_DIR)/arm/faults.c \
 	$(LOCAL_DIR)/arm/mmu.c \
-	$(LOCAL_DIR)/arm/thread.c
+	$(LOCAL_DIR)/arm/thread.c \
+	$(LOCAL_DIR)/arm/uspace_entry.S
 
 MODULE_FLOAT_SRCS += \
 	$(LOCAL_DIR)/arm/exceptions.S \
