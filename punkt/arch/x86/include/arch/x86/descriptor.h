@@ -13,6 +13,7 @@
  */
 #define NULL_SELECTOR       0x00
 
+// TODO: refactor to kernel/user selectors
 /********* x86 selectors *********/
 #define CODE_SELECTOR       0x08
 #define DATA_SELECTOR       0x10
@@ -24,6 +25,7 @@
 #define STACK_64_SELECTOR   0x30
 #define USER_CODE_64_SELECTOR   0x38
 #define USER_DATA_64_SELECTOR   0x40
+#define USER_DATA_SELECTOR      (0x28 | 3)
 
 #define TSS_SELECTOR        0x48
 
