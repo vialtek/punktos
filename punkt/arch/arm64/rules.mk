@@ -19,6 +19,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/cache-ops.S \
 	$(LOCAL_DIR)/user_copy.S \
 	$(LOCAL_DIR)/user_copy_c.c \
+	$(LOCAL_DIR)/uspace_entry.S \
 
 GLOBAL_DEFINES += \
 	ARCH_DEFAULT_STACK_SIZE=4096
