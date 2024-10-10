@@ -3,6 +3,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 MODULE := $(LOCAL_DIR)
 
 MODULE_DEPS += \
+	lib/base_lib \
     lib/user_copy
 
 MODULE_SRCS += \
