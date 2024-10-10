@@ -12,7 +12,12 @@
 
 struct arch_thread {
     vaddr_t sp;
+    vaddr_t fs_base;
+    vaddr_t gs_base;
+
     vaddr_t *fpu_states;
     uint8_t fpu_buffer[512 + 16];
-};
 
+    /* if non-NULL, address to return to on page fault */
+    void *page_fault_resume;
+};

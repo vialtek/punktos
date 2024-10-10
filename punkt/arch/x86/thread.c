@@ -58,6 +58,8 @@ void arch_thread_initialize(thread_t *t) {
 
     // set the stack pointer
     t->arch.sp = (vaddr_t)frame;
+    t->arch.fs_base = 0;
+    t->arch.gs_base = 0;
 }
 
 void arch_dump_thread(thread_t *t) {
@@ -69,6 +71,16 @@ void arch_dump_thread(thread_t *t) {
 
 void arch_context_switch(thread_t *oldthread, thread_t *newthread) {
     fpu_context_switch(oldthread, newthread);
+
+    /* user and kernel gs have been swapped, so unswap them when loading
+     * from the msrs
+     */
+    oldthread->arch.fs_base = read_msr(X86_MSR_IA32_FS_BASE);
+    oldthread->arch.gs_base = read_msr(X86_MSR_IA32_KERNEL_GS_BASE);
+
+    write_msr(X86_MSR_IA32_FS_BASE, newthread->arch.fs_base);
+    write_msr(X86_MSR_IA32_KERNEL_GS_BASE, newthread->arch.gs_base);
+
     x86_64_context_switch(&oldthread->arch.sp, newthread->arch.sp);
 }
 

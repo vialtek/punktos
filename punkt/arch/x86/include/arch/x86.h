@@ -60,6 +60,11 @@ struct x86_64_context_switch_frame {
 };
 
 void x86_64_context_switch(vaddr_t *oldsp, vaddr_t newsp);
+void x86_uspace_entry(
+        void *thread_arg,
+        vaddr_t ustack,
+        uint64_t rflags,
+        vaddr_t entry_point) __NO_RETURN;
 
 /*
  * x86-64 TSS structure

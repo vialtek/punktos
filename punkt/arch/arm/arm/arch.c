@@ -380,7 +380,7 @@ static void spinlock_test_secondary(void) {
 }
 
 /* switch to user mode, set the user stack pointer to user_stack_top, put the svc stack pointer to the top of the kernel stack */
-void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top) {
+void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top, void* thread_arg) {
     DEBUG_ASSERT(IS_ALIGNED(user_stack_top, 8));
 
     thread_t *ct = get_current_thread();
@@ -393,16 +393,7 @@ void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top) {
 
     arch_disable_ints();
 
-    asm volatile(
-        "ldmia  %[ustack], { sp }^;"
-        "msr	spsr, %[spsr];"
-        "mov	sp, %[kstack];"
-        "movs	pc, %[entry];"
-        :
-        : [ustack]"r"(&user_stack_top),
-        [kstack]"r"(kernel_stack_top),
-        [entry]"r"(entry_point),
-        [spsr]"r"(spsr)
-        : "memory");
+    extern void arm_uspace_entry(void *thread_arg, vaddr_t kstack, vaddr_t *ustack, uint32_t spsr, vaddr_t entry_point) __NO_RETURN;
+    arm_uspace_entry(thread_arg, kernel_stack_top, &user_stack_top, spsr, entry_point);
     __UNREACHABLE;
 }

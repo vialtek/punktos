@@ -17,6 +17,9 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/spinlock.S \
 	$(LOCAL_DIR)/start.S \
 	$(LOCAL_DIR)/cache-ops.S \
+	$(LOCAL_DIR)/user_copy.S \
+	$(LOCAL_DIR)/user_copy_c.c \
+	$(LOCAL_DIR)/uspace_entry.S \
 
 GLOBAL_DEFINES += \
 	ARCH_DEFAULT_STACK_SIZE=4096
@@ -76,6 +79,9 @@ ARCH_COMPILEFLAGS += $(ARCH_$(ARCH)_COMPILEFLAGS)
 ARCH_COMPILEFLAGS += -fno-omit-frame-pointer
 ARCH_COMPILEFLAGS_NOFLOAT := -mgeneral-regs-only
 ARCH_COMPILEFLAGS_FLOAT :=
+
+# user space linker script
+USER_LINKER_SCRIPT := $(LOCAL_DIR)/user.ld
 
 ARCH_LDFLAGS += -z max-page-size=4096
 

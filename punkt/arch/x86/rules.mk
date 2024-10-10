@@ -25,7 +25,8 @@ GLOBAL_DEFINES += \
 	KERNEL_LOAD_OFFSET=$(KERNEL_LOAD_OFFSET) \
 	KERNEL_ASPACE_BASE=$(KERNEL_ASPACE_BASE) \
 	KERNEL_ASPACE_SIZE=$(KERNEL_ASPACE_SIZE) \
-	SMP_MAX_CPUS=1
+	SMP_MAX_CPUS=1 \
+	X86_WITH_FPU=1
 
 MODULE_SRCS += \
 	$(SUBARCH_DIR)/start.S \
@@ -34,6 +35,8 @@ MODULE_SRCS += \
 	$(SUBARCH_DIR)/exceptions.S \
 	$(SUBARCH_DIR)/mmu.c \
 	$(SUBARCH_DIR)/ops.S \
+	$(SUBARCH_DIR)/user_copy.S \
+	$(SUBARCH_DIR)/uspace_entry.S \
 \
 	$(LOCAL_DIR)/arch.c \
 	$(LOCAL_DIR)/cache.c \
@@ -42,11 +45,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/feature.c \
 	$(LOCAL_DIR)/gdt.S \
 	$(LOCAL_DIR)/thread.c \
-
-GLOBAL_DEFINES += \
-	X86_WITH_FPU=1
-
-MODULE_SRCS += \
+	$(LOCAL_DIR)/user_copy.c \
 	$(LOCAL_DIR)/fpu.c
 
 include $(LOCAL_DIR)/toolchain.mk
@@ -84,6 +83,7 @@ ARCH_OPTFLAGS := -O2
 LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) -print-libgcc-file-name)
 $(warning LIBGCC = $(LIBGCC))
 
+USER_LINKER_SCRIPT := $(SUBARCH_DIR)/user.ld
 LINKER_SCRIPT += $(SUBARCH_BUILDDIR)/kernel.ld
 
 # potentially generated files that should be cleaned out with clean make rule

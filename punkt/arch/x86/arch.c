@@ -86,38 +86,29 @@ void arch_chain_load(void *entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3
     PANIC_UNIMPLEMENTED;
 }
 
-void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top) {
-    PANIC_UNIMPLEMENTED;
-#if 0
+void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top, void* thread_arg) {
     DEBUG_ASSERT(IS_ALIGNED(user_stack_top, 16));
-
-    thread_t *ct = get_current_thread();
-
-    vaddr_t kernel_stack_top = (uintptr_t)ct->stack + ct->stack_size;
-    kernel_stack_top = ROUNDDOWN(kernel_stack_top, 16);
-
-    /* set up a default spsr to get into 64bit user space:
-     * zeroed NZCV
-     * no SS, no IL, no D
-     * all interrupts enabled
-     * mode 0: EL0t
-     */
-    uint32_t spsr = 0;
+    user_stack_top -= 8; /* start the user stack 8 byte unaligned, which is how the abi expects it */
 
     arch_disable_ints();
 
-    asm volatile(
-        "mov    sp, %[kstack];"
-        "msr    sp_el0, %[ustack];"
-        "msr    elr_el1, %[entry];"
-        "msr    spsr_el1, %[spsr];"
-        "eret;"
-        :
-        : [ustack]"r"(user_stack_top),
-        [kstack]"r"(kernel_stack_top),
-        [entry]"r"(entry_point),
-        [spsr]"r"(spsr)
-        : "memory");
+    /* default user space flags:
+     * IOPL 0
+     * Interrupts enabled
+     */
+    ulong flags = (0 << X86_FLAGS_IOPL_SHIFT) | X86_FLAGS_IF;
+
+    /* check that we're probably still pointed at the kernel gs */
+    DEBUG_ASSERT(is_kernel_address(read_msr(X86_MSR_IA32_GS_BASE)));
+
+    /* set up user's fs: gs: base */
+    write_msr(X86_MSR_IA32_FS_BASE, 0);
+
+    /* set the KERNEL_GS_BASE msr here, because we're going to swapgs below */
+    write_msr(X86_MSR_IA32_KERNEL_GS_BASE, 0);
+
+    /* TODO: clear all of the other registers to avoid leading kernel state */
+
+    x86_uspace_entry(thread_arg, user_stack_top, flags, entry_point);
     __UNREACHABLE;
-#endif
 }
