@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <lib/base_lib/type_support.h>
+#include <lib/sbl/type_support.h>
 
 // RAII class to automatically call a function-like thing as it goes out of
 // scope
@@ -25,7 +25,7 @@
 //
 //    // abort the call
 //    ac2.cancel();
-namespace base_lib {
+namespace sbl {
 
 template <typename T>
 class AutoCall {

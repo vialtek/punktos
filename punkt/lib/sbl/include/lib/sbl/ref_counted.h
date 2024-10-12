@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <lib/base_lib/ref_counted_internal.h>
+#include <lib/sbl/ref_counted_internal.h>
 
-namespace base_lib {
+namespace sbl {
 
 // Base class for a reference counted type.  Use as
 //
@@ -17,7 +17,7 @@ namespace base_lib {
 //
 // This supports intrusive atomic reference counting with adoption. This means
 // that a new object starts life at a reference count of 1 and has to be adopted
-// by a type (such as a base_lib::RefPtr) that begins manipulation of the reference
+// by a type (such as a sbl::RefPtr) that begins manipulation of the reference
 // count. If the reference count ever reaches zero, the object's lifetime is
 // over and it should be destroyed (Release() returns true if this is the case).
 template <typename T>
@@ -38,4 +38,4 @@ private:
     RefCounted& operator=(const RefCounted&) = delete;
 };
 
-}  // namespace base_lib
+}  // namespace sbl

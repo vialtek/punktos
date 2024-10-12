@@ -9,10 +9,10 @@
 #include <new.h>
 #include <stddef.h>
 
-#include <lib/base_lib/intrusive_single_list.h>
-#include <lib/base_lib/type_support.h>
+#include <lib/sbl/intrusive_single_list.h>
+#include <lib/sbl/type_support.h>
 
-namespace base_lib {
+namespace sbl {
 
 // Arena is a fast memory allocator for objects of a single size.
 // Both Alloc() and Free() are always O(1) and memory always comes
@@ -83,7 +83,7 @@ public:
     template <typename... Args>
     T* New(Args&&... args) {
         void* addr = arena_.Alloc();
-        return addr ? new (addr) T(base_lib::forward<Args>(args)...) : nullptr;
+        return addr ? new (addr) T(sbl::forward<Args>(args)...) : nullptr;
     };
 
     void Delete(T* obj) {

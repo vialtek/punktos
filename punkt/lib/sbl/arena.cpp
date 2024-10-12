@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT
 
-#include <lib/base_lib/arena.h>
+#include <lib/sbl/arena.h>
 
 #include <assert.h>
 #include <lk/err.h>
@@ -14,7 +14,7 @@
 
 #include <vm/vm.h>
 
-namespace base_lib {
+namespace sbl {
 
 Arena::Arena()
     : ob_size_(0u),

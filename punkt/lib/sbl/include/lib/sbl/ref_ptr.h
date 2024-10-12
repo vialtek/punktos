@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <lib/base_lib/type_support.h>
+#include <lib/sbl/type_support.h>
 
-namespace base_lib {
+namespace sbl {
 
 template <typename T>
 class RefPtr;
@@ -18,7 +18,7 @@ RefPtr<T> AdoptRef(T* ptr);
 
 // RefPtr<T> holds a reference to an intrusively-refcounted object of type T.
 //
-// T should be a subclass of base_lib::RefCounted<>, or something that adheres to
+// T should be a subclass of sbl::RefCounted<>, or something that adheres to
 // the
 // same contract for AddRef() and Release().
 //
@@ -66,7 +66,7 @@ public:
     }
     // Move assignment
     RefPtr& operator=(RefPtr&& r) {
-        base_lib::move(r).swap(*this);
+        sbl::move(r).swap(*this);
         return *this;
     }
 
@@ -127,4 +127,4 @@ inline RefPtr<T> AdoptRef(T* ptr) {
     return RefPtr<T>(ptr, RefPtr<T>::ADOPT);
 }
 
-}  // namespace base_lib
+}  // namespace sbl

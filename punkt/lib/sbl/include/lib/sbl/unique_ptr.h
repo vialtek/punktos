@@ -7,9 +7,9 @@
 #pragma once
 
 #include <lib/heap.h>
-#include <lib/base_lib/type_support.h>
+#include <lib/sbl/type_support.h>
 
-namespace base_lib {
+namespace sbl {
 
 template <typename T>
 struct default_delete {
@@ -168,4 +168,4 @@ private:
 
 // TODO: operator==, operator!=, operator<, etc
 
-}  // namespace base_lib
+}  // namespace sbl

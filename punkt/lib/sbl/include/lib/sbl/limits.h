@@ -7,9 +7,9 @@
 #pragma once
 
 #include <limits.h>
-#include <lib/base_lib/type_support.h>
+#include <lib/sbl/type_support.h>
 
-namespace base_lib {
+namespace sbl {
 
 template <class T>
 class numeric_limits {};
@@ -98,4 +98,4 @@ SPECIALIZE_UNSIGNED(unsigned long long, 0, ULLONG_MAX);
 #undef SPECIALIZE_UNSIGNED
 #undef SPECIALIZE_INT
 
-}  // namespace base_lib
+}  // namespace sbl

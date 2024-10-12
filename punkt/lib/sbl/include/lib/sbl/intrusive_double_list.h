@@ -8,7 +8,7 @@
 
 #include <assert.h>
 
-namespace base_lib {
+namespace sbl {
 
 template <typename T>
 struct DoublyLinkedListTraits {

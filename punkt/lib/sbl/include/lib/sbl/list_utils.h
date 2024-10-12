@@ -6,7 +6,7 @@
 
 #pragma once
 
-namespace base_lib {
+namespace sbl {
 
 template <typename List, typename UnaryFn>
 void for_each(List* list, UnaryFn fn) {
@@ -61,4 +61,4 @@ size_t move_if(List* list_src, List* list_dst, UnaryFn fn) {
     return count;
 }
 
-}  // namespace base_lib
+}  // namespace sbl

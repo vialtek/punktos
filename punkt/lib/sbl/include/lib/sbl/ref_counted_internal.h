@@ -10,7 +10,7 @@
 #include <compiler.h>
 #include <debug.h>
 
-namespace base_lib {
+namespace sbl {
 namespace internal {
 
 class RefCountedBase {
@@ -52,4 +52,4 @@ private:
 };
 
 }  // namespace internal
-}  // namespace base_lib
+}  // namespace sbl

@@ -6,7 +6,7 @@
 
 #pragma once
 
-namespace base_lib {
+namespace sbl {
 
 template <typename T, T v>
 struct integral_constant {
@@ -70,4 +70,4 @@ template<class T> struct enable_if<true, T> {
     typedef T type;
 };
 
-}  // namespace base_lib
+}  // namespace sbl

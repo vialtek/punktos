@@ -7,9 +7,9 @@
 #pragma once
 
 #include <assert.h>
-#include <lib/base_lib/unique_ptr.h>
+#include <lib/sbl/unique_ptr.h>
 
-namespace base_lib {
+namespace sbl {
 
 template <typename T, typename Deleter = default_delete<T[]>>
 class Array {

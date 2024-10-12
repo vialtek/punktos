@@ -8,7 +8,7 @@
 
 #include <string.h>
 
-namespace base_lib {
+namespace sbl {
 
 // A string-like object that points to a sized piece of memory.
 // The string data may or may not be null terminated.
@@ -39,4 +39,4 @@ private:
     size_t length_;
 };
 
-}  // namespace base_lib
+}  // namespace sbl

@@ -7,10 +7,10 @@
 #pragma once
 
 #include <assert.h>
-#include <lib/base_lib/intrusive_single_list.h>
-#include <lib/base_lib/list_utils.h>
+#include <lib/sbl/intrusive_single_list.h>
+#include <lib/sbl/list_utils.h>
 
-namespace base_lib {
+namespace sbl {
 
 // The number of buckets should be a nice prime such as 37, 211, 389 unless
 // The hash function is really good. Lots of cheap hash functions have hidden
@@ -61,7 +61,7 @@ public:
     template <typename UnaryFn>
     void for_each(UnaryFn fn) {
         for (auto& e : buckets_) {
-            base_lib::for_each(&e, fn);
+            sbl::for_each(&e, fn);
         }
     }
 

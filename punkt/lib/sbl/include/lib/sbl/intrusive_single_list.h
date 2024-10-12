@@ -8,7 +8,7 @@
 
 #include <assert.h>
 
-namespace base_lib {
+namespace sbl {
 
 template <typename T>
 struct SinglyLinkedListTraits {
@@ -102,4 +102,4 @@ private:
 
 // TODO: support C++11 range iterator.
 
-}  // namespace base_lib
+}  // namespace sbl
