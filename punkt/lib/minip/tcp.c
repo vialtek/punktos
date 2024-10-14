@@ -21,7 +21,6 @@
 #include <kernel/semaphore.h>
 #include <arch/ops.h>
 #include <platform.h>
-#include <arch/atomic.h>
 
 #define LOCAL_TRACE 0
 
