@@ -15,10 +15,8 @@ __BEGIN_CDECLS
 
 struct arch_thread {
     vaddr_t sp;
-#if ARCH_X86_64
     vaddr_t fs_base;
     vaddr_t gs_base;
-#endif
 
     /* buffer to save fpu state */
     vaddr_t *fpu_states;

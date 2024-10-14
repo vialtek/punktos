@@ -58,7 +58,6 @@ static void exception_die(x86_iframe_t *frame, const char *msg)
     dprintf(CRITICAL, "%s", msg);
     dump_fault_frame(frame);
 
-#if ARCH_X86_64
     // try to dump the user stack
     if (is_user_address(frame->user_sp)) {
         uint8_t buf[256];
@@ -67,7 +66,6 @@ static void exception_die(x86_iframe_t *frame, const char *msg)
             hexdump_ex(buf, sizeof(buf), frame->user_sp);
         }
     }
-#endif
 
     for (;;) {
         x86_cli();

@@ -53,10 +53,8 @@ struct x86_percpu {
 
     /* The IDT for this CPU */
     struct idt idt;
-#ifdef ARCH_X86_64
     /* Reserved space for interrupt stacks */
     uint8_t interrupt_stacks[NUM_ASSIGNED_IST_ENTRIES][PAGE_SIZE];
-#endif
 };
 
 STATIC_ASSERT(__offsetof(struct x86_percpu, direct) == PERCPU_DIRECT_OFFSET);

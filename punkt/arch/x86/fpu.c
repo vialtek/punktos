@@ -30,12 +30,7 @@ void fpu_init(void)
 {
     uint16_t fcw;
     uint32_t mxcsr;
-
-#ifdef ARCH_X86_64
     uint64_t x;
-#else
-    uint32_t x;
-#endif
 
     if (!x86_feature_test(X86_FEATURE_FPU) ||
         !x86_feature_test(X86_FEATURE_SSE) ||

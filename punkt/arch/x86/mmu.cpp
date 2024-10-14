@@ -22,13 +22,8 @@
 
 /* Default address width including virtual/physical address.
  * newer versions fetched below */
-#if ARCH_X86_64
 uint8_t g_vaddr_width = 48;
 uint8_t g_paddr_width = 32;
-#elif ARCH_X86_32
-uint8_t g_vaddr_width = 32;
-uint8_t g_paddr_width = 32;
-#endif
 
 /* top level kernel page tables, initialized in start.S */
 pt_entry_t pml4[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
@@ -67,7 +62,6 @@ static bool is_valid_vaddr(arch_aspace_t* aspace, vaddr_t vaddr) {
  * @brief  check if the virtual address is canonical
  */
 bool x86_is_vaddr_canonical(vaddr_t vaddr) {
-#if ARCH_X86_64
     uint64_t max_vaddr_lohalf, min_vaddr_hihalf;
 
     /* get max address in lower-half canonical addr space */
@@ -80,7 +74,6 @@ bool x86_is_vaddr_canonical(vaddr_t vaddr) {
 
     /* Check to see if the address in a canonical address */
     if ((vaddr > max_vaddr_lohalf) && (vaddr < min_vaddr_hihalf)) return false;
-#endif
 
     return true;
 }
@@ -998,18 +991,8 @@ void x86_mmu_early_init() {
     x86_mmu_mem_type_init();
     x86_mmu_percpu_init();
 
-#if ARCH_X86_64
     /* unmap the lower identity mapping */
     unmap_entry<PML4_L>(x86_get_cr3(), 0, &pml4[0], true);
-#else
-    /* unmap the lower identity mapping */
-    for (uint i = 0; i < (1 * GB) / (4 * MB); i++) {
-        pd[i] = 0;
-    }
-
-    /* tlb flush */
-    tlb_global_invalidate();
-#endif
 
     /* get the address width from the CPU */
     uint8_t vaddr_width = x86_linear_address_width();
@@ -1044,10 +1027,6 @@ status_t arch_mmu_init_aspace(arch_aspace_t* aspace, vaddr_t base, size_t size, 
         aspace->pt_virt = (pt_entry_t*)X86_PHYS_TO_VIRT(aspace->pt_phys);
         LTRACEF("kernel aspace: pt phys 0x%lx, virt %p\n", aspace->pt_phys, aspace->pt_virt);
     } else {
-#if ARCH_X86_32
-        /* not fully functional on 32bit x86 */
-        return ERR_NOT_SUPPORTED;
-#else
         /* allocate a top level page table for the new address space */
         paddr_t pa;
         aspace->pt_virt = (pt_entry_t*)pmm_alloc_kpage(&pa);
@@ -1065,7 +1044,6 @@ status_t arch_mmu_init_aspace(arch_aspace_t* aspace, vaddr_t base, size_t size, 
                sizeof(pt_entry_t) * NO_OF_PT_ENTRIES / 2);
 
         LTRACEF("user aspace: pt phys 0x%lx, virt %p\n", aspace->pt_phys, aspace->pt_virt);
-#endif
     }
     aspace->io_bitmap_ptr = NULL;
     spin_lock_init(&aspace->io_bitmap_lock);

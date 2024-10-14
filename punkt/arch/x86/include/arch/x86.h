@@ -20,14 +20,6 @@ __BEGIN_CDECLS
 
 #define X86_8BYTE_MASK 0xFFFFFFFF
 
-struct x86_32_iframe {
-    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;    // pushed by common handler using pusha
-    uint32_t ds, es, fs, gs;                            // pushed by common handler
-    uint32_t vector;                                    // pushed by stub
-    uint32_t err_code;                                  // pushed by interrupt or stub
-    uint32_t ip, cs, flags;                             // pushed by interrupt
-    uint32_t user_sp, user_ss;                          // pushed by interrupt if priv change occurs
-};
 
 struct x86_64_iframe {
     uint64_t rdi, rsi, rbp, rbx, rdx, rcx, rax;         // pushed by common handler
@@ -38,17 +30,7 @@ struct x86_64_iframe {
     uint64_t user_sp, user_ss;                          // pushed by interrupt
 };
 
-#if ARCH_X86_32
-typedef struct x86_32_iframe x86_iframe_t;
-#elif ARCH_X86_64
 typedef struct x86_64_iframe x86_iframe_t;
-#endif
-
-struct x86_32_context_switch_frame {
-    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
-    uint32_t eflags;
-    uint32_t eip;
-};
 
 struct x86_64_context_switch_frame {
     uint64_t r15, r14, r13, r12;
@@ -78,34 +60,6 @@ void x86_bringup_smp(uint32_t *apic_ids, uint32_t num_cpus);
 #define IO_BITMAP_BITS      65536
 #define IO_BITMAP_BYTES     (IO_BITMAP_BITS/8)
 #define IO_BITMAP_LONGS     (IO_BITMAP_BITS/sizeof(long))
-
-/*
- * x86-32 TSS structure
- */
-typedef struct {
-    uint16_t    backlink, __blh;
-    uint32_t    esp0;
-    uint16_t    ss0, __ss0h;
-    uint32_t    esp1;
-    uint16_t    ss1, __ss1h;
-    uint32_t    esp2;
-    uint16_t    ss2, __ss2h;
-    uint32_t    cr3;
-    uint32_t    eip;
-    uint32_t    eflags;
-    uint32_t    eax, ecx, edx, ebx;
-    uint32_t    esp, ebp, esi, edi;
-    uint16_t    es, __esh;
-    uint16_t    cs, __csh;
-    uint16_t    ss, __ssh;
-    uint16_t    ds, __dsh;
-    uint16_t    fs, __fsh;
-    uint16_t    gs, __gsh;
-    uint16_t    ldt, __ldth;
-    uint16_t    trace, bitmap;
-
-    uint8_t tss_bitmap[IO_BITMAP_BYTES + 1];
-} __PACKED tss_32_t;
 
 /*
  * Assignment of Interrupt Stack Table entries
@@ -140,11 +94,7 @@ typedef struct {
     uint8_t tss_bitmap[IO_BITMAP_BYTES + 1];
 } __PACKED tss_64_t;
 
-#if ARCH_X86_32
-typedef tss_32_t tss_t;
-#elif ARCH_X86_64
 typedef tss_64_t tss_t;
-#endif
 
 /* shared accessors between 32 and 64bit */
 static inline void x86_clts(void) {__asm__ __volatile__ ("clts"); }
@@ -214,17 +164,12 @@ static inline void outpd(uint16_t _port, uint32_t _data)
 static inline uint64_t rdtsc(void)
 {
     uint64_t tsc;
-
-#if ARCH_X86_64
     uint32_t tsc_low;
     uint32_t tsc_hi;
 
     __asm__ __volatile__("rdtsc" : "=a" (tsc_low), "=d" (tsc_hi));
 
     tsc = ((uint64_t)tsc_hi << 32) | tsc_low;
-#else
-    __asm__ __volatile__("rdtsc" : "=A" (tsc));
-#endif
 
      return tsc;
 }
@@ -342,7 +287,6 @@ static inline void x86_set_cr4(ulong in_val)
 
 static inline uint64_t read_msr (uint32_t msr_id)
 {
-#if ARCH_X86_64
     uint32_t msr_read_val_lo;
     uint32_t msr_read_val_hi;
 
@@ -352,29 +296,13 @@ static inline uint64_t read_msr (uint32_t msr_id)
         : "c" (msr_id));
 
     return ((uint64_t)msr_read_val_hi << 32) | msr_read_val_lo;
-#else
-    /* =A doesn't seem to work properly on x86-64 */
-    uint64_t msr_read_val;
-    __asm__ __volatile__ (
-        "rdmsr \n\t"
-        : "=A" (msr_read_val)
-        : "c" (msr_id));
-
-    return msr_read_val;
-#endif
 }
 
 static inline void write_msr (uint32_t msr_id, uint64_t msr_write_val)
 {
-#if ARCH_X86_64
     __asm__ __volatile__ (
         "wrmsr \n\t"
         : : "c" (msr_id), "a" (msr_write_val & 0xffffffff), "d" (msr_write_val >> 32));
-#else
-    __asm__ __volatile__ (
-        "wrmsr \n\t"
-        : : "c" (msr_id), "A" (msr_write_val));
-#endif
 }
 
 
@@ -420,130 +348,6 @@ static inline void x86_write_gs_offset(uintptr_t offset, ulong val)
         : "memory"
     );
 }
-
-
-#if ARCH_X86_32
-
-typedef uint32_t x86_flags_t;
-
-static inline uint32_t x86_save_flags(void)
-{
-    unsigned int state;
-
-    __asm__ volatile(
-        "pushfl;"
-        "popl %0"
-        : "=rm" (state)
-        :: "memory");
-
-    return state;
-}
-
-static inline void x86_restore_flags(uint32_t flags)
-{
-    __asm__ volatile(
-        "pushl %0;"
-        "popfl"
-        :: "g" (flags)
-        : "memory", "cc");
-}
-
-static inline void inprep(uint16_t _port, uint8_t *_buffer, uint32_t _reads)
-{
-    __asm__ __volatile__ ("pushal \n\t"
-                          "pushfl \n\t"
-                          "cli \n\t"
-                          "cld \n\t"
-                          "rep insb \n\t"
-                          "popfl \n\t"
-                          "popal"
-                          :
-                          : "d" (_port),
-                          "D" (_buffer),
-                          "c" (_reads));
-}
-
-static inline void outprep(uint16_t _port, uint8_t *_buffer, uint32_t _writes)
-{
-    __asm__ __volatile__ ("pushal \n\t"
-                          "pushfl \n\t"
-                          "cli \n\t"
-                          "cld \n\t"
-                          "rep outsb \n\t"
-                          "popfl \n\t"
-                          "popal"
-                          :
-                          : "d" (_port),
-                          "S" (_buffer),
-                          "c" (_writes));
-}
-
-static inline void inpwrep(uint16_t _port, uint16_t *_buffer, uint32_t _reads)
-{
-    __asm__ __volatile__ ("pushal \n\t"
-                          "pushfl \n\t"
-                          "cli \n\t"
-                          "cld \n\t"
-                          "rep insw \n\t"
-                          "popfl \n\t"
-                          "popal"
-                          :
-                          : "d" (_port),
-                          "D" (_buffer),
-                          "c" (_reads));
-}
-
-static inline void outpwrep(uint16_t _port, uint16_t *_buffer,
-                            uint32_t _writes)
-{
-    __asm__ __volatile__ ("pushal \n\t"
-                          "pushfl \n\t"
-                          "cli \n\t"
-                          "cld \n\t"
-                          "rep outsw \n\t"
-                          "popfl \n\t"
-                          "popal"
-                          :
-                          : "d" (_port),
-                          "S" (_buffer),
-                          "c" (_writes));
-}
-
-static inline void inpdrep(uint16_t _port, uint32_t *_buffer,
-                           uint32_t _reads)
-{
-    __asm__ __volatile__ ("pushal \n\t"
-                          "pushfl \n\t"
-                          "cli \n\t"
-                          "cld \n\t"
-                          "rep insl \n\t"
-                          "popfl \n\t"
-                          "popal"
-                          :
-                          : "d" (_port),
-                          "D" (_buffer),
-                          "c" (_reads));
-}
-
-static inline void outpdrep(uint16_t _port, uint32_t *_buffer,
-                            uint32_t _writes)
-{
-    __asm__ __volatile__ ("pushal \n\t"
-                          "pushfl \n\t"
-                          "cli \n\t"
-                          "cld \n\t"
-                          "rep outsl \n\t"
-                          "popfl \n\t"
-                          "popal"
-                          :
-                          : "d" (_port),
-                          "S" (_buffer),
-                          "c" (_writes));
-}
-
-#endif // ARCH_X86_32
-
-#if ARCH_X86_64
 
 typedef uint64_t x86_flags_t;
 
@@ -649,7 +453,5 @@ static inline void outpdrep(uint16_t _port, uint32_t *_buffer,
                           "S" (_buffer),
                           "c" (_writes));
 }
-
-#endif // ARCH_X86_64
 
 __END_CDECLS

@@ -12,22 +12,15 @@ __BEGIN_CDECLS
 
 struct idt_entry {
     uint32_t w0, w1;
-#ifdef ARCH_X86_64
     uint32_t w2, w3;
-#endif
 };
 
 struct idt {
     struct idt_entry entries[256];
 };
 
-#ifdef ARCH_X86_64
 STATIC_ASSERT(sizeof(struct idt_entry) == 16);
 STATIC_ASSERT(sizeof(struct idt) == 16 * 256);
-#else
-STATIC_ASSERT(sizeof(struct idt_entry) == 8);
-STATIC_ASSERT(sizeof(struct idt) == 8* 256);
-#endif
 
 struct idtr {
     uint16_t limit;
@@ -35,15 +28,8 @@ struct idtr {
 } __PACKED;
 
 enum idt_entry_type {
-#ifdef ARCH_X86_64
     IDT_INTERRUPT_GATE64 = 0xe,
     IDT_TRAP_GATE64 = 0xf,
-#else
-    IDT_INTERRUPT_GATE16 = 0x6,
-    IDT_TRAP_GATE16 = 0x7,
-    IDT_INTERRUPT_GATE32 = 0xe,
-    IDT_TRAP_GATE32 = 0xf,
-#endif
 };
 
 enum idt_dpl {
@@ -75,7 +61,6 @@ void idt_set_vector(
         enum idt_dpl dpl,
         enum idt_entry_type typ);
 
-#ifdef ARCH_X86_64
 /*
  * @brief Set the Interrupt Stack Table index to use
  *
@@ -85,7 +70,6 @@ void idt_set_vector(
  *        If ist_idx == 0, use the normal stack for the target privilege level.
  */
 void idt_set_ist_index(struct idt *idt, uint8_t vec, uint8_t ist_idx);
-#endif
 
 /*
  * @brief Initialize this IDT with our default values

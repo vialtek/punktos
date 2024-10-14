@@ -24,11 +24,7 @@ DATA(_gdtr_phys)
 .align 8
 DATA(_gdtr)
     .short _gdt_end - _gdt - 1
-#if ARCH_X86_32
-    .int _gdt
-#elif ARCH_X86_64
     .quad _gdt
-#endif
 
 .data
 .align 8
