@@ -359,7 +359,7 @@ status_t virtio_gpu_start(struct virtio_device *dev) {
     /* attach a backing store to the resource */
     size_t len = gdev->pmode.r.width * gdev->pmode.r.height * 4;
 
-    gdev->fb = pmm_alloc_kpages(ROUNDUP(len, PAGE_SIZE) / PAGE_SIZE, NULL);
+    gdev->fb = pmm_alloc_kpages(ROUNDUP(len, PAGE_SIZE) / PAGE_SIZE, NULL, NULL);
 
     if (!gdev->fb) {
         TRACEF("failed to allocate framebuffer, wanted 0x%zx bytes\n", len);
@@ -421,8 +421,7 @@ status_t virtio_gpu_init(struct virtio_device *dev, uint32_t host_features) {
     gdev->next_resource_id = 1;
 
     /* allocate memory for a gpu request */
-    gdev->gpu_request = pmm_alloc_kpage();
-    gdev->gpu_request_phys = vaddr_to_paddr(gdev->gpu_request);
+    gdev->gpu_request = pmm_alloc_kpage(&gdev->gpu_request_phys);
 
     /* make sure the device is reset */
     virtio_reset_device(dev);
