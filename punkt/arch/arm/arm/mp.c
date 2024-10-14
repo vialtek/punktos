@@ -60,9 +60,7 @@ enum handler_return arm_ipi_generic_handler(void *arg)
 {
     LTRACEF("cpu %u, arg %p\n", arch_curr_cpu_num(), arg);
 
-    // TODO: integrate with kernel/mp.c from Zircon
-    // return mp_mbx_generic_irq();
-    return INT_NO_RESCHEDULE;
+    return mp_mbx_generic_irq();
 }
 
 enum handler_return arm_ipi_reschedule_handler(void *arg)
@@ -79,7 +77,6 @@ void arch_mp_init_percpu(void)
     register_int_handler(MP_IPI_RESCHEDULE + GIC_IPI_BASE, &arm_ipi_reschedule_handler, 0);
 #endif
 
-    // TODO: integrate with kernel/mp.c from Zircon
-    //mp_set_curr_cpu_online(true);
+    mp_set_curr_cpu_online(true);
 }
 
