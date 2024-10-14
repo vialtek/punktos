@@ -12,7 +12,7 @@
 #include <vm/vm_aspace.h>
 #include <stdint.h>
 #include <sys/types.h>
-#include <sbl/limits.h>
+#include <lib/sbl/limits.h>
 
 #define VM_GLOBAL_TRACE 0
 

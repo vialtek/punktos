@@ -9,7 +9,7 @@
 #include <arch/mmu.h>
 #include <assert.h>
 #include <kernel/mutex.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <lib/sbl/intrusive_double_list.h>
 #include <lib/sbl/ref_counted.h>
 #include <lib/sbl/ref_ptr.h>

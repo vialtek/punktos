@@ -76,12 +76,12 @@ VmObject::~VmObject() {
     magic_ = 0;
 }
 
-utils::RefPtr<VmObject> VmObject::Create(uint32_t pmm_alloc_flags, uint64_t size) {
+sbl::RefPtr<VmObject> VmObject::Create(uint32_t pmm_alloc_flags, uint64_t size) {
     // there's a max size to keep indexes within range
     if (size >= MAX_SIZE)
         return nullptr;
 
-    auto vmo = utils::AdoptRef(new VmObject(pmm_alloc_flags));
+    auto vmo = sbl::AdoptRef(new VmObject(pmm_alloc_flags));
     if (!vmo)
         return nullptr;
 

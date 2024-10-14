@@ -30,7 +30,7 @@ VmAspace* VmAspace::kernel_aspace_ = nullptr;
 
 // list of all address spaces
 static mutex_t aspace_list_lock = MUTEX_INITIAL_VALUE(aspace_list_lock);
-static sbs::DoublyLinkedList<VmAspace> aspaces;
+static sbl::DoublyLinkedList<VmAspace> aspaces;
 
 // called once at boot to initialize the singleton kernel address space
 void VmAspace::KernelAspaceInit() {
@@ -120,7 +120,7 @@ status_t VmAspace::Init() {
     return arch_mmu_init_aspace(&arch_aspace_, base_, size_, arch_aspace_flags);
 }
 
-sbs::RefPtr<VmAspace> VmAspace::Create(uint32_t flags, const char* name) {
+sbl::RefPtr<VmAspace> VmAspace::Create(uint32_t flags, const char* name) {
     LTRACEF("flags 0x%x, name '%s'\n", flags, name);
 
     vaddr_t base;
@@ -141,7 +141,7 @@ sbs::RefPtr<VmAspace> VmAspace::Create(uint32_t flags, const char* name) {
     default:
         panic("Invalid aspace type");
     }
-    auto aspace = sbs::AdoptRef(new VmAspace(base, size, flags, name));
+    auto aspace = sbl::AdoptRef(new VmAspace(base, size, flags, name));
     if (!aspace)
         return nullptr;
 
@@ -158,7 +158,7 @@ sbs::RefPtr<VmAspace> VmAspace::Create(uint32_t flags, const char* name) {
     }
 
     // return a ref pointer to the aspace
-    return sbs::move(aspace);
+    return sbl::move(aspace);
 }
 
 void VmAspace::Rename(const char* name) {
@@ -215,7 +215,7 @@ status_t VmAspace::Destroy() {
 
 // add a region to the appropriate spot in the address space list,
 // testing to see if there's a space
-status_t VmAspace::AddRegion(sbs::RefPtr<VmRegion> r) {
+status_t VmAspace::AddRegion(sbl::RefPtr<VmRegion> r) {
     DEBUG_ASSERT(magic_ == MAGIC);
     DEBUG_ASSERT(r);
 
@@ -351,7 +351,7 @@ done:
 }
 
 // allocate a region and insert it into the list
-sbs::RefPtr<VmRegion> VmAspace::AllocRegion(const char* name, size_t size, vaddr_t vaddr,
+sbl::RefPtr<VmRegion> VmAspace::AllocRegion(const char* name, size_t size, vaddr_t vaddr,
                                               uint8_t align_pow2, uint vmm_flags,
                                               uint arch_mmu_flags) {
     DEBUG_ASSERT(magic_ == MAGIC);
@@ -359,7 +359,7 @@ sbs::RefPtr<VmRegion> VmAspace::AllocRegion(const char* name, size_t size, vaddr
     LTRACEF_LEVEL(2, "aspace %p name '%s' size 0x%zx vaddr 0x%lx\n", this, name, size, vaddr);
 
     // make a region struct for it and stick it in the list
-    sbs::RefPtr<VmRegion> r = VmRegion::Create(*this, vaddr, size, arch_mmu_flags, name);
+    sbl::RefPtr<VmRegion> r = VmRegion::Create(*this, vaddr, size, arch_mmu_flags, name);
     if (!r)
         return nullptr;
 
@@ -394,7 +394,7 @@ sbs::RefPtr<VmRegion> VmAspace::AllocRegion(const char* name, size_t size, vaddr
             regions_.push_front(r.get());
     }
 
-    return sbs::move(r);
+    return sbl::move(r);
 }
 
 // internal find region search routine
@@ -412,15 +412,15 @@ VmRegion* VmAspace::FindRegionLocked(vaddr_t vaddr) {
 }
 
 // return a ref pointer to a region
-sbs::RefPtr<VmRegion> VmAspace::FindRegion(vaddr_t vaddr) {
+sbl::RefPtr<VmRegion> VmAspace::FindRegion(vaddr_t vaddr) {
     AutoLock a(lock_);
 
     auto r = FindRegionLocked(vaddr);
 
-    return sbs::RefPtr<VmRegion>(r);
+    return sbl::RefPtr<VmRegion>(r);
 }
 
-status_t VmAspace::MapObject(sbs::RefPtr<VmObject> vmo, const char* name, uint64_t offset,
+status_t VmAspace::MapObject(sbl::RefPtr<VmObject> vmo, const char* name, uint64_t offset,
                              size_t size, void** ptr, uint8_t align_pow2, uint vmm_flags,
                              uint arch_mmu_flags) {
 
@@ -462,7 +462,7 @@ status_t VmAspace::MapObject(sbs::RefPtr<VmObject> vmo, const char* name, uint64
     }
 
     // associate the vm object with it
-    r->SetObject(sbs::move(vmo), offset);
+    r->SetObject(sbl::move(vmo), offset);
 
     // if we're committing it, map the region now
     if (vmm_flags & VMM_FLAG_COMMIT) {
@@ -597,7 +597,7 @@ status_t VmAspace::AllocContiguous(const char* name, size_t size, void** ptr, ui
         return ERR_NO_MEMORY;
     }
 
-    return MapObject(sbs::move(vmo), name, 0, size, ptr, align_pow2, vmm_flags, arch_mmu_flags);
+    return MapObject(sbl::move(vmo), name, 0, size, ptr, align_pow2, vmm_flags, arch_mmu_flags);
 }
 
 status_t VmAspace::Alloc(const char* name, size_t size, void** ptr, uint8_t align_pow2,
@@ -627,7 +627,7 @@ status_t VmAspace::Alloc(const char* name, size_t size, void** ptr, uint8_t alig
     }
 
     // map it, creating a new region
-    return MapObject(sbs::move(vmo), name, 0, size, ptr, align_pow2, vmm_flags, arch_mmu_flags);
+    return MapObject(sbl::move(vmo), name, 0, size, ptr, align_pow2, vmm_flags, arch_mmu_flags);
 }
 
 status_t VmAspace::FreeRegion(vaddr_t vaddr) {
@@ -706,5 +706,5 @@ void VmAspace::Dump() {
 void DumpAllAspaces() {
     AutoLock a(aspace_list_lock);
 
-    sbs::for_each(&aspaces, [](VmAspace* a) { a->Dump(); });
+    sbl::for_each(&aspaces, [](VmAspace* a) { a->Dump(); });
 }

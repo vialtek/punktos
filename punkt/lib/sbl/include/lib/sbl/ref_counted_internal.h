@@ -7,8 +7,8 @@
 #pragma once
 
 #include <assert.h>
-#include <compiler.h>
-#include <debug.h>
+#include <lk/compiler.h>
+#include <lk/debug.h>
 
 namespace sbl {
 namespace internal {

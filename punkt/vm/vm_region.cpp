@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT
 
-#include <kernel/vm/vm_region.h>
+#include <vm/vm_region.h>
 
 #include "vm_priv.h"
 #include <assert.h>
@@ -14,7 +14,7 @@
 #include <vm/vm_object.h>
 #include <string.h>
 #include <trace.h>
-#include <sbl/type_support.h>
+#include <lib/sbl/type_support.h>
 
 #define LOCAL_TRACE MAX(VM_GLOBAL_TRACE, 0)
 
