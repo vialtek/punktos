@@ -1,15 +1,16 @@
-/*
- * Copyright (c) 2014 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2014 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <lk/asm.h>
 #include <arch/asm_macros.h>
+#include <arch/arm64.h>
 
 .section .text.boot.vectab
-.p2align 11
+.align 12
 
 #define lr x30
 #define regsave_long_offset 0xf0
@@ -107,16 +108,22 @@ add sp, sp, #32
     b   .
 .endm
 
-.macro irq_exception
+.macro irq_exception, exception_flags
     regsave_short
     msr daifclr, #1 /* reenable fiqs once elr and spsr have been saved */
     mov x0, sp
-    bl  platform_irq
-    cbz x0, .Lirq_exception_no_preempt\@
-    bl  thread_preempt
-.Lirq_exception_no_preempt\@:
+    mov x1, \exception_flags
+    bl  arm64_irq
     msr daifset, #1 /* disable fiqs to protect elr and spsr restore */
     b   arm64_exc_shared_restore_short
+.endm
+
+.macro sync_exception, exception_flags
+    regsave_long
+    mov x0, sp
+    mov x1, \exception_flags
+    bl  arm64_sync_exception
+    b  arm64_exc_shared_restore_long
 .endm
 
 FUNCTION(arm64_exception_base)
@@ -140,14 +147,11 @@ LOCAL_FUNCTION(arm64_err_exc_current_el_SP0)
 /* exceptions from current EL, using SPx */
 .org 0x200
 LOCAL_FUNCTION(arm64_sync_exc_current_el_SPx)
-    regsave_long
-    mov x0, sp
-    bl  arm64_sync_exception
-    b  arm64_exc_shared_restore_long
+    sync_exception #0 /* same EL, arm64 */
 
 .org 0x280
 LOCAL_FUNCTION(arm64_irq_current_el_SPx)
-    irq_exception
+    irq_exception #0 /* same EL, arm64 */
 
 .org 0x300
 LOCAL_FUNCTION(arm64_fiq_current_el_SPx)
@@ -163,14 +167,11 @@ LOCAL_FUNCTION(arm64_err_exc_current_el_SPx)
 /* exceptions from lower EL, running arm64 */
 .org 0x400
 LOCAL_FUNCTION(arm64_sync_exc_lower_el_64)
-    regsave_long
-    mov x0, sp
-    bl  arm64_sync_exception
-    b  arm64_exc_shared_restore_long
+    sync_exception #(ARM64_EXCEPTION_FLAG_LOWER_EL)
 
 .org 0x480
 LOCAL_FUNCTION(arm64_irq_lower_el_64)
-    irq_exception
+    irq_exception #(ARM64_EXCEPTION_FLAG_LOWER_EL)
 
 .org 0x500
 LOCAL_FUNCTION(arm64_fiq_lower_el_64)
@@ -186,14 +187,11 @@ LOCAL_FUNCTION(arm64_err_exc_lower_el_64)
 /* exceptions from lower EL, running arm32 */
 .org 0x600
 LOCAL_FUNCTION(arm64_sync_exc_lower_el_32)
-    regsave_long
-    mov x0, sp
-    bl  arm64_sync_exception
-    b  arm64_exc_shared_restore_long
+    sync_exception #(ARM64_EXCEPTION_FLAG_LOWER_EL|ARM64_EXCEPTION_FLAG_ARM32)
 
 .org 0x680
 LOCAL_FUNCTION(arm64_irq_lower_el_32)
-    irq_exception
+    irq_exception #(ARM64_EXCEPTION_FLAG_LOWER_EL|ARM64_EXCEPTION_FLAG_ARM32)
 
 .org 0x700
 LOCAL_FUNCTION(arm64_fiq_lower_el_32)
@@ -206,7 +204,6 @@ LOCAL_FUNCTION(arm64_fiq_lower_el_32)
 LOCAL_FUNCTION(arm64_err_exc_lower_el_32)
     invalid_exception 0x33
 
-.text
 LOCAL_FUNCTION(arm64_exc_shared_restore_long)
     regrestore_long
     eret

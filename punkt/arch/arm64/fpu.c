@@ -1,32 +1,36 @@
-/*
- * Copyright (c) 2015 Google Inc. All rights reserved
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2015 Google Inc. All rights reserved
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 
 #include <arch/arm64.h>
-#include <kernel/thread.h>
+#include <lk/bits.h>
+#include <assert.h>
 #include <lk/trace.h>
+#include <kernel/thread.h>
 
 #define LOCAL_TRACE 0
 
-static struct fpstate *current_fpstate[SMP_MAX_CPUS];
+/* FPEN bits in the cpacr register
+ * 0 means all fpu instructions fault
+ * 3 means no faulting at all EL levels
+ * other values are not useful to us
+ */
+#define FPU_ENABLE_MASK (3<<20)
 
-static void arm64_fpu_load_state(struct thread *t) {
-    uint cpu = arch_curr_cpu_num();
+static inline bool is_fpu_enabled(uint32_t cpacr)
+{
+    return !!(BITS(cpacr, 21, 20) != 0);
+}
+
+static void arm64_fpu_load_state(struct thread *t)
+{
     struct fpstate *fpstate = &t->arch.fpstate;
 
-    if (fpstate == current_fpstate[cpu] && fpstate->current_cpu == cpu) {
-        LTRACEF("cpu %d, thread %s, fpstate already valid\n", cpu, t->name);
-        return;
-    }
-    LTRACEF("cpu %d, thread %s, load fpstate %p, last cpu %d, last fpstate %p\n",
-            cpu, t->name, fpstate, fpstate->current_cpu, current_fpstate[cpu]);
-    fpstate->current_cpu = cpu;
-    current_fpstate[cpu] = fpstate;
-
+    LTRACEF("cpu %d, thread %s, load fpstate %p\n", arch_curr_cpu_num(), t->name, fpstate);
 
     STATIC_ASSERT(sizeof(fpstate->regs) == 16 * 32);
     __asm__ volatile("ldp     q0, q1, [%0, #(0 * 32)]\n"
@@ -47,11 +51,15 @@ static void arm64_fpu_load_state(struct thread *t) {
                      "ldp     q30, q31, [%0, #(15 * 32)]\n"
                      "msr     fpcr, %1\n"
                      "msr     fpsr, %2\n"
-                     :: "r"(fpstate), "r"(fpstate->fpcr), "r"(fpstate->fpsr));
+                     :: "r"(fpstate->regs), "r"(fpstate->fpcr), "r"(fpstate->fpsr));
 }
 
-void arm64_fpu_save_state(struct thread *t) {
+static void arm64_fpu_save_state(struct thread *t)
+{
     struct fpstate *fpstate = &t->arch.fpstate;
+
+    LTRACEF("cpu %d, thread %s, save fpstate %p\n", arch_curr_cpu_num(), t->name, fpstate);
+
     __asm__ volatile("stp     q0, q1, [%2, #(0 * 32)]\n"
                      "stp     q2, q3, [%2, #(1 * 32)]\n"
                      "stp     q4, q5, [%2, #(2 * 32)]\n"
@@ -71,19 +79,44 @@ void arm64_fpu_save_state(struct thread *t) {
                      "mrs     %0, fpcr\n"
                      "mrs     %1, fpsr\n"
                      : "=r"(fpstate->fpcr), "=r"(fpstate->fpsr)
-                     : "r"(fpstate));
+                     : "r"(fpstate->regs));
 
     LTRACEF("thread %s, fpcr %x, fpsr %x\n", t->name, fpstate->fpcr, fpstate->fpsr);
 }
 
-void arm64_fpu_exception(struct arm64_iframe_long *iframe) {
+/* save fpu state if the thread had dirtied it and disable the fpu */
+void arm64_fpu_context_switch(struct thread *oldthread, struct thread *newthread)
+{
     uint32_t cpacr = ARM64_READ_SYSREG(cpacr_el1);
-    if (((cpacr >> 20) & 3) != 3) {
-        cpacr |= 3 << 20;
-        ARM64_WRITE_SYSREG(cpacr_el1, cpacr);
-        thread_t *t = get_current_thread();
-        if (likely(t))
-            arm64_fpu_load_state(t);
-        return;
+    if (is_fpu_enabled(cpacr)) {
+        LTRACEF("saving state on thread %s\n", oldthread->name);
+
+        /* save the state */
+        arm64_fpu_save_state(oldthread);
+
+        /* disable the fpu again */
+        ARM64_WRITE_SYSREG(cpacr_el1, cpacr & ~FPU_ENABLE_MASK);
     }
 }
+
+/* called because of a fpu instruction used exception */
+void arm64_fpu_exception(struct arm64_iframe_long *iframe, uint exception_flags)
+{
+    LTRACEF("cpu %d, thread %s, flags 0x%x\n", arch_curr_cpu_num(), get_current_thread()->name, exception_flags);
+
+    /* only valid to be called if exception came from lower level */
+    DEBUG_ASSERT(exception_flags & ARM64_EXCEPTION_FLAG_LOWER_EL);
+
+    uint32_t cpacr = ARM64_READ_SYSREG(cpacr_el1);
+    DEBUG_ASSERT(!is_fpu_enabled(cpacr));
+
+    /* enable the fpu */
+    cpacr |= FPU_ENABLE_MASK;
+    ARM64_WRITE_SYSREG(cpacr_el1, cpacr);
+
+    /* load the state from the current cpu */
+    thread_t *t = get_current_thread();
+    if (likely(t))
+        arm64_fpu_load_state(t);
+}
+

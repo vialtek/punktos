@@ -1,13 +1,12 @@
-/*
- * Copyright (c) 2014 Google Inc. All rights reserved
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2014 Google Inc. All rights reserved
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
 
-#ifndef __ARCH_ARM64_MMU_H
-#define __ARCH_ARM64_MMU_H
+
+#pragma once
 
 #include <arch/defines.h>
 
@@ -38,8 +37,26 @@
 #define MMU_USER_SIZE_SHIFT 48
 #endif
 
+#ifndef MMU_IDENT_SIZE_SHIFT
+#define MMU_IDENT_SIZE_SHIFT 42 /* Max size supported by block mappings */
+#endif
+
 #define MMU_KERNEL_PAGE_SIZE_SHIFT      (PAGE_SIZE_SHIFT)
 #define MMU_USER_PAGE_SIZE_SHIFT        (USER_PAGE_SIZE_SHIFT)
+
+#if MMU_IDENT_SIZE_SHIFT < 25
+#error MMU_IDENT_SIZE_SHIFT too small
+#elif MMU_IDENT_SIZE_SHIFT <= 29 /* Use 2MB block mappings (4K page size) */
+#define MMU_IDENT_PAGE_SIZE_SHIFT       (SHIFT_4K)
+#elif MMU_IDENT_SIZE_SHIFT <= 30 /* Use 512MB block mappings (64K page size) */
+#define MMU_IDENT_PAGE_SIZE_SHIFT       (SHIFT_64K)
+#elif MMU_IDENT_SIZE_SHIFT <= 39 /* Use 1GB block mappings (4K page size) */
+#define MMU_IDENT_PAGE_SIZE_SHIFT       (SHIFT_4K)
+#elif MMU_IDENT_SIZE_SHIFT <= 42 /* Use 512MB block mappings (64K page size) */
+#define MMU_IDENT_PAGE_SIZE_SHIFT       (SHIFT_64K)
+#else
+#error MMU_IDENT_SIZE_SHIFT too large
+#endif
 
 /*
  * TCR TGx values
@@ -84,6 +101,20 @@
 #error Kernel address space size must be larger than page size
 #endif
 #define MMU_KERNEL_PAGE_TABLE_ENTRIES_TOP (0x1 << (MMU_KERNEL_SIZE_SHIFT - MMU_KERNEL_TOP_SHIFT))
+
+#if MMU_IDENT_SIZE_SHIFT > MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 0)
+#define MMU_IDENT_TOP_SHIFT MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 0)
+#elif MMU_IDENT_SIZE_SHIFT > MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 1)
+#define MMU_IDENT_TOP_SHIFT MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 1)
+#elif MMU_IDENT_SIZE_SHIFT > MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 2)
+#define MMU_IDENT_TOP_SHIFT MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 2)
+#elif MMU_IDENT_SIZE_SHIFT > MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 3)
+#define MMU_IDENT_TOP_SHIFT MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 3)
+#else
+#error Ident address space size must be larger than page size
+#endif
+#define MMU_PAGE_TABLE_ENTRIES_IDENT_SHIFT (MMU_IDENT_SIZE_SHIFT - MMU_IDENT_TOP_SHIFT)
+#define MMU_PAGE_TABLE_ENTRIES_IDENT (0x1 << MMU_PAGE_TABLE_ENTRIES_IDENT_SHIFT)
 
 #define MMU_PTE_DESCRIPTOR_BLOCK_MAX_SHIFT      (30)
 
@@ -168,6 +199,10 @@
 #define MMU_PTE_ATTR_ATTR_INDEX(attrindex)      BM(2, 3, attrindex)
 #define MMU_PTE_ATTR_ATTR_INDEX_MASK            MMU_PTE_ATTR_ATTR_INDEX(7)
 
+#define MMU_PTE_PERMISSION_MASK (MMU_PTE_ATTR_AP_MASK | \
+                                 MMU_PTE_ATTR_UXN | \
+                                 MMU_PTE_ATTR_PXN)
+
 /* Default configuration for main kernel page table:
  *    - do cached translation walks
  */
@@ -197,6 +232,8 @@
                                          MMU_MAIR_ATTR4 | MMU_MAIR_ATTR5 | \
                                          MMU_MAIR_ATTR6 | MMU_MAIR_ATTR7 )
 
+#define MMU_TCR_IPS_DEFAULT MMU_TCR_IPS(2) /* TODO: read at runtime, or configure per platform */
+
 /* Enable cached page table walks:
  * inner/outer (IRGN/ORGN): write-back + write-allocate
  */
@@ -210,9 +247,28 @@
                         MMU_TCR_ORGN0(MMU_RGN_WRITE_BACK_ALLOCATE) | \
                         MMU_TCR_IRGN0(MMU_RGN_WRITE_BACK_ALLOCATE) | \
                         MMU_TCR_T0SZ(64 - MMU_USER_SIZE_SHIFT))
-#define MMU_TCR_FLAGS_BASE (MMU_TCR_FLAGS1 | MMU_TCR_FLAGS0)
-#define MMU_TCR_FLAGS_KERNEL (MMU_TCR_EPD0)
-#define MMU_TCR_FLAGS_USER (0)
+#define MMU_TCR_FLAGS0_IDENT \
+                       (MMU_TCR_TG0(MMU_TG0(MMU_IDENT_PAGE_SIZE_SHIFT)) | \
+                        MMU_TCR_SH0(MMU_SH_INNER_SHAREABLE) | \
+                        MMU_TCR_ORGN0(MMU_RGN_WRITE_BACK_ALLOCATE) | \
+                        MMU_TCR_IRGN0(MMU_RGN_WRITE_BACK_ALLOCATE) | \
+                        MMU_TCR_T0SZ(64 - MMU_IDENT_SIZE_SHIFT))
+#define MMU_TCR_FLAGS_IDENT (MMU_TCR_IPS_DEFAULT | MMU_TCR_FLAGS1 | MMU_TCR_FLAGS0_IDENT)
+#define MMU_TCR_FLAGS_KERNEL (MMU_TCR_IPS_DEFAULT | MMU_TCR_FLAGS1 | MMU_TCR_FLAGS0 | MMU_TCR_EPD0)
+#define MMU_TCR_FLAGS_USER (MMU_TCR_IPS_DEFAULT | MMU_TCR_FLAGS1 | MMU_TCR_FLAGS0)
+
+
+#if MMU_IDENT_SIZE_SHIFT > MMU_LX_X(MMU_IDENT_PAGE_SIZE_SHIFT, 2)
+#define MMU_PTE_IDENT_DESCRIPTOR MMU_PTE_L012_DESCRIPTOR_BLOCK
+#else
+#define MMU_PTE_IDENT_DESCRIPTOR MMU_PTE_L3_DESCRIPTOR_PAGE
+#endif
+#define MMU_PTE_IDENT_FLAGS \
+    (MMU_PTE_IDENT_DESCRIPTOR | \
+     MMU_PTE_ATTR_AF | \
+     MMU_PTE_ATTR_SH_INNER_SHAREABLE | \
+     MMU_PTE_ATTR_NORMAL_MEMORY | \
+     MMU_PTE_ATTR_AP_P_RW_U_NA)
 
 #define MMU_PTE_KERNEL_RO_FLAGS \
     (MMU_PTE_ATTR_UXN | \
@@ -279,5 +335,3 @@ int arm64_mmu_unmap(vaddr_t vaddr, size_t size,
 
 __END_CDECLS
 #endif /* ASSEMBLY */
-
-#endif
