@@ -7,7 +7,6 @@ Aim of the first milestone is to create userland and syscalls infrastructure.
 
 See https://github.com/littlekernel/lk for more information about LK.
 
-
 ### High Level Overview
 
 - Microkernel based OS
@@ -22,5 +21,3 @@ See https://github.com/littlekernel/lk for more information about LK.
 - ARM64
   - ARMv8 and ARMv9 cores
 - x86-64
-- (*Untested*) RISC-V 32 and 64bit, inherited from LK
-
