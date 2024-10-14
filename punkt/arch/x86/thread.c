@@ -1,39 +1,25 @@
-/*
- * Copyright (c) 2009 Corey Tabaka
- * Copyright (c) 2014 Travis Geiselbrecht
- * Copyright (c) 2015 Intel Corporation
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2009 Corey Tabaka
+// Copyright (c) 2014 Travis Geiselbrecht
+// Copyright (c) 2015 Intel Corporation
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <sys/types.h>
 #include <string.h>
 #include <stdlib.h>
 #include <lk/debug.h>
 #include <kernel/thread.h>
 #include <kernel/spinlock.h>
+#include <arch/fpu.h>
 #include <arch/x86.h>
 #include <arch/x86/descriptor.h>
-#include <arch/fpu.h>
+#include <arch/x86/mp.h>
 
-/* we're uniprocessor at this point for x86, so store a global pointer to the current thread */
-struct thread *_current_thread;
-
-static void initial_thread_func(void) __NO_RETURN;
-static void initial_thread_func(void) {
-    int ret;
-
-    /* release the thread lock that was implicitly held across the reschedule */
-    spin_unlock(&thread_lock);
-    arch_enable_ints();
-
-    ret = _current_thread->entry(_current_thread->arg);
-
-    thread_exit(ret);
-}
-
-void arch_thread_initialize(thread_t *t) {
+void arch_thread_initialize(thread_t *t, vaddr_t entry_point)
+{
     // create a default stack frame on the stack
     vaddr_t stack_top = (vaddr_t)t->stack + t->stack_size;
 
@@ -49,8 +35,7 @@ void arch_thread_initialize(thread_t *t) {
     // move down a frame size and zero it out
     frame--;
     memset(frame, 0, sizeof(*frame));
-
-    frame->rip = (vaddr_t) &initial_thread_func;
+    frame->rip = entry_point;
     frame->rflags = 0x3002; /* IF = 0, NT = 0, IOPL = 3 */
 
     // initialize the saved fpu state
@@ -58,19 +43,35 @@ void arch_thread_initialize(thread_t *t) {
 
     // set the stack pointer
     t->arch.sp = (vaddr_t)frame;
+
+    // initialize the fs, gs and kernel bases to 0.
     t->arch.fs_base = 0;
     t->arch.gs_base = 0;
 }
 
-void arch_dump_thread(thread_t *t) {
+void arch_dump_thread(thread_t *t)
+{
     if (t->state != THREAD_RUNNING) {
         dprintf(INFO, "\tarch: ");
         dprintf(INFO, "sp 0x%lx\n", t->arch.sp);
     }
 }
 
-void arch_context_switch(thread_t *oldthread, thread_t *newthread) {
+void arch_context_switch(thread_t *oldthread, thread_t *newthread)
+{
     fpu_context_switch(oldthread, newthread);
+
+    /* TODO: precompute the stack top and put in the thread structure directly */
+    vaddr_t kstack_top = (vaddr_t)newthread->stack + newthread->stack_size;
+    kstack_top = ROUNDDOWN(kstack_top, 16);
+
+    //printf("cs 0x%llx\n", kstack_top);
+
+    /* set the tss SP0 value to point at the top of our stack */
+    x86_set_tss_sp(kstack_top);
+
+    /* set the kernel sp in our per cpu gs: structure */
+    x86_set_percpu_kernel_sp(kstack_top);
 
     /* user and kernel gs have been swapped, so unswap them when loading
      * from the msrs
@@ -83,4 +84,3 @@ void arch_context_switch(thread_t *oldthread, thread_t *newthread) {
 
     x86_64_context_switch(&oldthread->arch.sp, newthread->arch.sp);
 }
-

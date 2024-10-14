@@ -1,31 +1,17 @@
-/*
-* Copyright (c) 2015 Intel Corporation
-*
-* Permission is hereby granted, free of charge, to any person obtaining
-* a copy of this software and associated documentation files
-* (the "Software"), to deal in the Software without restriction,
-* including without limitation the rights to use, copy, modify, merge,
-* publish, distribute, sublicense, and/or sell copies of the Software,
-* and to permit persons to whom the Software is furnished to do so,
-* subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be
-* included in all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2015 Intel Corporation
+// Copyright (c) 2016 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 
 #include <lk/trace.h>
-#include <lk/bits.h>
+#include <assert.h>
+#include <arch/fpu.h>
 #include <arch/x86.h>
 #include <arch/x86/feature.h>
-#include <arch/fpu.h>
 #include <string.h>
 #include <kernel/thread.h>
 
@@ -33,96 +19,45 @@
 
 #define FPU_MASK_ALL_EXCEPTIONS 1
 
-/* CPUID EAX = 1 return values */
+static int fp_supported;
 
-static bool fp_supported;
-static thread_t *fp_owner;
+static void set_fpu_enabled(bool enabled);
 
 /* FXSAVE area comprises 512 bytes starting with 16-byte aligned */
 static uint8_t __ALIGNED(16) fpu_init_states[512]= {0};
 
-/* saved copy of some feature bits */
-typedef struct {
-    bool with_fpu;
-    bool with_sse;
-    bool with_sse2;
-    bool with_sse3;
-    bool with_ssse3;
-    bool with_sse4_1;
-    bool with_sse4_2;
-    bool with_sse4a;
-    bool with_fxsave;
-    bool with_xsave;
+void fpu_init(void)
+{
+    uint16_t fcw;
+    uint32_t mxcsr;
 
-    bool with_xsaveopt;
-    bool with_xsavec;
-    bool with_xsaves;
-} fpu_features_t;
+#ifdef ARCH_X86_64
+    uint64_t x;
+#else
+    uint32_t x;
+#endif
 
-static fpu_features_t fpu_features;
-
-/* called on the first cpu before the kernel is initialized. printfs may not work here */
-void x86_fpu_early_init(void) {
-    fp_supported = false;
-    fp_owner = NULL;
-
-    // test a bunch of fpu features
-    fpu_features.with_fpu = x86_feature_test(X86_FEATURE_FPU);
-    fpu_features.with_sse = x86_feature_test(X86_FEATURE_SSE);
-    fpu_features.with_sse2 = x86_feature_test(X86_FEATURE_SSE2);
-    fpu_features.with_sse3 = x86_feature_test(X86_FEATURE_SSE3);
-    fpu_features.with_ssse3 = x86_feature_test(X86_FEATURE_SSSE3);
-    fpu_features.with_sse4_1 = x86_feature_test(X86_FEATURE_SSE4_1);
-    fpu_features.with_sse4_2 = x86_feature_test(X86_FEATURE_SSE4_2);
-    fpu_features.with_sse4a = x86_feature_test(X86_FEATURE_SSE4A);
-    fpu_features.with_fxsave = x86_feature_test(X86_FEATURE_FXSR);
-    fpu_features.with_xsave = x86_feature_test(X86_FEATURE_XSAVE);
-
-    // these are the mandatory ones to continue (for the moment)
-    if (!fpu_features.with_fpu || !fpu_features.with_sse || !fpu_features.with_fxsave) {
+    if (!x86_feature_test(X86_FEATURE_FPU) ||
+        !x86_feature_test(X86_FEATURE_SSE) ||
+        !x86_feature_test(X86_FEATURE_SSE2) ||
+        !x86_feature_test(X86_FEATURE_SSE3) ||
+        !x86_feature_test(X86_FEATURE_SSSE3) ||
+        !x86_feature_test(X86_FEATURE_SSE4_1) ||
+        !x86_feature_test(X86_FEATURE_SSE4_2) ||
+        !x86_feature_test(X86_FEATURE_FXSR))
         return;
-    }
 
-    fp_supported = true;
-
-    // detect and save some xsave information
-    // NOTE: currently unused
-    fpu_features.with_xsaveopt = false;
-    fpu_features.with_xsavec = false;
-    fpu_features.with_xsaves = false;
-    if (fpu_features.with_xsave) {
-        LTRACEF("X86: XSAVE detected\n");
-        struct x86_cpuid_leaf leaf;
-        if (x86_get_cpuid_subleaf(X86_CPUID_XSAVE, 0, &leaf)) {
-            fpu_features.with_xsaveopt = BIT(leaf.a, 0);
-            fpu_features.with_xsavec = BIT(leaf.a, 1);
-            fpu_features.with_xsaves = BIT(leaf.a, 3);
-            LTRACEF("xsaveopt %u xsavec %u xsaves %u\n", fpu_features.with_xsaveopt, fpu_features.with_xsavec, fpu_features.with_xsaves);
-            LTRACEF("xsave leaf 0: %#x %#x %#x %#x\n", leaf.a, leaf.b, leaf.c, leaf.d);
-        }
-        if (x86_get_cpuid_subleaf(X86_CPUID_XSAVE, 1, &leaf)) {
-            LTRACEF("xsave leaf 1: %#x %#x %#x %#x\n", leaf.a, leaf.b, leaf.c, leaf.d);
-        }
-
-        for (int i = 2; i < 64; i++) {
-            if (x86_get_cpuid_subleaf(X86_CPUID_XSAVE, i, &leaf)) {
-                if (leaf.a > 0) {
-                    LTRACEF("xsave leaf %d: %#x %#x %#x %#x\n", i, leaf.a, leaf.b, leaf.c, leaf.d);
-                    LTRACEF("\tstate %d: size required %u offset %u\n", i, leaf.a, leaf.b);
-                }
-            }
-        }
-    }
+    fp_supported = 1;
 
     /* No x87 emul, monitor co-processor */
-    ulong x = x86_get_cr0();
+
+    x = x86_get_cr0();
     x &= ~X86_CR0_EM;
     x |= X86_CR0_NE;
     x |= X86_CR0_MP;
     x86_set_cr0(x);
 
     /* Init x87 */
-    uint16_t fcw;
     __asm__ __volatile__ ("finit");
     __asm__ __volatile__("fstcw %0" : "=m" (fcw));
 #if FPU_MASK_ALL_EXCEPTIONS
@@ -136,12 +71,11 @@ void x86_fpu_early_init(void) {
 
     /* Init SSE */
     x = x86_get_cr4();
-    x |= X86_CR4_OSXMMEXPT; // supports exceptions
-    x |= X86_CR4_OSFXSR;    // supports fxsave
-    x &= ~X86_CR4_OSXSAVE;  // no support for xsave (currently)
+    x |= X86_CR4_OSXMMEXPT;
+    x |= X86_CR4_OSFXSR;
+    x &= ~X86_CR4_OSXSAVE;
     x86_set_cr4(x);
 
-    uint32_t mxcsr;
     __asm__ __volatile__("stmxcsr %0" : "=m" (mxcsr));
 #if FPU_MASK_ALL_EXCEPTIONS
     /* mask all exceptions */
@@ -153,86 +87,61 @@ void x86_fpu_early_init(void) {
     __asm__ __volatile__("ldmxcsr %0" : : "m" (mxcsr));
 
     /* save fpu initial states, and used when new thread creates */
+    /* TODO: construct this statically instead of making a copy from the state of the cpu here */
     __asm__ __volatile__("fxsave %0" : "=m" (fpu_init_states));
 
-    x86_set_cr0(x86_get_cr0() | X86_CR0_TS);
-
-    return;
+    /* disable the fpu by default */
+    set_fpu_enabled(false);
 }
 
-void x86_fpu_init(void) {
-    dprintf(SPEW, "X86: fpu %u sse %u sse2 %u sse3 %u ssse3 %u sse4.1 %u sse4.2 %u sse4a %u\n",
-            fpu_features.with_fpu, fpu_features.with_sse, fpu_features.with_sse2,
-            fpu_features.with_sse3, fpu_features.with_ssse3, fpu_features.with_sse4_1,
-            fpu_features.with_sse4_2, fpu_features.with_sse4a);
-    dprintf(SPEW, "X86: fxsave %u xsave %u\n", fpu_features.with_fxsave, fpu_features.with_xsave);
-
-    if (!fp_supported) {
-        dprintf(SPEW, "no usable FPU detected (requires SSE + FXSAVE)\n");
-    }
-
-    if (fpu_features.with_fxsave) {
-        dprintf(SPEW, "X86: FXSAVE detected\n");
-    }
-
-    if (fpu_features.with_xsave) {
-        dprintf(SPEW, "X86: XSAVE detected\n");
-        dprintf(SPEW, "\txsaveopt %u xsavec %u xsaves %u\n", fpu_features.with_xsaveopt, fpu_features.with_xsavec, fpu_features.with_xsaves);
-
-        struct x86_cpuid_leaf leaf;
-        if (x86_get_cpuid_subleaf(X86_CPUID_XSAVE, 0, &leaf)) {
-            dprintf(SPEW, "\txsave leaf 0: %#x %#x %#x %#x\n", leaf.a, leaf.b, leaf.c, leaf.d);
-        }
-        if (x86_get_cpuid_subleaf(X86_CPUID_XSAVE, 1, &leaf)) {
-            dprintf(SPEW, "\txsave leaf 1: %#x %#x %#x %#x\n", leaf.a, leaf.b, leaf.c, leaf.d);
-        }
-
-        for (int i = 2; i < 64; i++) {
-            if (x86_get_cpuid_subleaf(X86_CPUID_XSAVE, i, &leaf)) {
-                if (leaf.a > 0) {
-                    dprintf(SPEW, "\txsave leaf %d: %#x %#x %#x %#x\n", i, leaf.a, leaf.b, leaf.c, leaf.d);
-                    dprintf(SPEW, "\t\tstate %d: size required %u offset %u\n", i, leaf.a, leaf.b);
-                }
-            }
-        }
-    }
-
-}
-
-void fpu_init_thread_states(thread_t *t) {
+void fpu_init_thread_states(thread_t *t)
+{
     t->arch.fpu_states = (vaddr_t *)ROUNDUP(((vaddr_t)t->arch.fpu_buffer), 16);
     memcpy(t->arch.fpu_states, fpu_init_states, sizeof(fpu_init_states));
 }
 
-void fpu_context_switch(thread_t *old_thread, thread_t *new_thread) {
-    if (!fp_supported)
-        return;
+static inline void set_fpu_enabled(bool enabled)
+{
+    DEBUG_ASSERT(arch_ints_disabled());
 
-    if (new_thread != fp_owner)
+    if (enabled) {
+        __asm__ volatile("clts");
+    } else {
         x86_set_cr0(x86_get_cr0() | X86_CR0_TS);
-    else
-        x86_set_cr0(x86_get_cr0() & ~X86_CR0_TS);
-
-    return;
+    }
 }
 
-void fpu_dev_na_handler(void) {
-    thread_t *self;
+static inline bool is_fpu_enabled(void)
+{
+    return !(x86_get_cr0() & X86_CR0_TS);
+}
 
-    x86_set_cr0(x86_get_cr0() & ~X86_CR0_TS);
-
-    if (!fp_supported)
+void fpu_context_switch(thread_t *old_thread, thread_t *new_thread)
+{
+    if (unlikely(fp_supported == 0))
         return;
 
-    self = get_current_thread();
-
-    LTRACEF("owner %p self %p\n", fp_owner, self);
-    if ((fp_owner != NULL) && (fp_owner != self)) {
-        __asm__ __volatile__("fxsave %0" : "=m" (*fp_owner->arch.fpu_states));
-        __asm__ __volatile__("fxrstor %0" : : "m" (*self->arch.fpu_states));
+    if (is_fpu_enabled()) {
+        LTRACEF("need to save state on thread %s, state ptr %p\n", old_thread->name, old_thread->arch.fpu_states);
+        __asm__ __volatile__("fxsave %0" : "=m" (*old_thread->arch.fpu_states));
+        set_fpu_enabled(false);
     }
-
-    fp_owner = self;
-    return;
 }
 
+void fpu_dev_na_handler(void)
+{
+    if (fp_supported == 0)
+        return;
+
+    LTRACEF("thread %p '%s' cpu %u\n", get_current_thread(), get_current_thread()->name, arch_curr_cpu_num());
+
+    DEBUG_ASSERT(arch_ints_disabled());
+    DEBUG_ASSERT(!is_fpu_enabled());
+
+    /* restore the thread fpu state */
+    set_fpu_enabled(true);
+    thread_t *t = get_current_thread();
+    __asm__ __volatile__("fxrstor %0" : : "m" (*t->arch.fpu_states));
+}
+
+/* End of file */

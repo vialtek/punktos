@@ -1,53 +1,68 @@
-/*
- * Copyright (c) 2009 Corey Tabaka
- * Copyright (c) 2015 Intel Corporation
- * Copyright (c) 2016 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
-#include <lk/asm.h>
-#include <arch/x86/descriptor.h>
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2009 Corey Tabaka
+// Copyright (c) 2015 Intel Corporation
+// Copyright (c) 2016 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
 
-#define NUM_INT 0x100
-#define ISR_STUB_LEN 16
+#include <lk/asm.h>
+
+#define NUM_INT 256
+
+/*
+ * Please not that the macro for generating interrupt routine stubs relies
+ * on macro execution counter which is shared by all invocation across this
+ * compilation unit. Be careful when adding additional macros to this file.
+ */
 
 .text
 
 /* interrupt service routine stubs */
-
-/*
- * pushq $i occupies 5 bytes when i >= 0x80 compare to
- * 2 bytes when i < 0x80, use align to fill the gap
- * to make sure isr_stub_len correct for each interrupts
- */
-.balign ISR_STUB_LEN
-LOCAL_FUNCTION(_isr_vectors)
 _isr:
-.set i, 0
-.rept NUM_INT
-
-.balign ISR_STUB_LEN
-.if i == 8 || (i >= 10 && i <= 14) || i == 17
+.macro def_isr
+.pushsection .text
+FUNCTION(_isr_\@)
+    /* Clear the AC flag to prevent ring 0 from performing data accesses to
+     * ring 3 if SMAP is available.  If it was set, it will get restored by
+     * iretd.  DO NOT REMOVE THIS CLAC, code in idt.c assumes it is here.
+     * It MUST be the first instruction of this function. */
+    clac
+.if \@ == 8 || (\@ >= 10 && \@ <= 14) || \@ == 17
     /* error code pushed by exception */
-    push $i        /* interrupt number */
-    jmp  interrupt_common
+    pushq $\@                                /* interrupt number */
+    jmp interrupt_common
 .else
-    push $0        /* fill in error code in iframe */
-    push $i        /* interrupt number */
-    jmp  interrupt_common
+    pushq $0                                 /* fill in error code in iframe */
+    pushq $\@                                /* interrupt number */
+    jmp interrupt_common
 .endif
+.popsection
+.pushsection .data
+.quad _isr_\@
+.popsection
+.endm
 
-.set i, i + 1
+.pushsection .data
+/* build a table of isr entry points */
+DATA(_isr_table)
+.popsection
+.rept NUM_INT
+def_isr
 .endr
-END_FUNCTION(_isr_vectors)
 
-.balign 16
-LOCAL_FUNCTION(interrupt_common)
-    /* clear the direction bit */
-    cld
+FUNCTION(interrupt_common)
+    /* Check to see if we came from user space by testing the PL of the
+     * CS register that was saved on the stack automatically. Check for != 0.
+     */
+    testb $3, 0x18(%rsp)
+    jz    1f
 
+    /* swap gs to kernel space */
+    swapgs
+
+1:
     /* save general purpose registers */
     pushq %r15
     pushq %r14
@@ -65,10 +80,14 @@ LOCAL_FUNCTION(interrupt_common)
     pushq %rsi
     pushq %rdi
 
-    /* pass the  iframe using rdi */
-    movq %rsp, %rdi
+    movq %rsp, %rdi     /* pass the  iframe using rdi */
 
     call x86_exception_handler
+
+/* A label to assist gdb's backtracing through kernel exceptions.
+   When gdb sees this as the return address it knows it can fetch
+   x86_iframe_t from $rsp. See scripts/lk.elf-gdb.py. */
+interrupt_common_iframe_set_up_for_debugger:
 
     /* restore general purpose registers */
     popq %rdi
@@ -87,64 +106,15 @@ LOCAL_FUNCTION(interrupt_common)
     popq %r14
     popq %r15
 
+    /* check if we're returning to user space as per before */
+    testb $3, 0x18(%rsp)
+    jz    1f
+
+    /* swap gs back to user space */
+    swapgs
+
+1:
     /* drop vector number and error code*/
     addq $16, %rsp
+
     iretq
-END_FUNCTION(interrupt_common)
-
-FUNCTION(setup_idt)
-    /* setup isr stub descriptors in the idt */
-    mov  $_isr_vectors, %rsi
-    mov  $_idt, %rdi
-    movl $NUM_INT, %ecx
-
-.Lloop:
-    mov  %rsi, %rbx
-    movw %bx, (%rdi)        /* offset [0:15] in IDT(n).low */
-    shr  $16, %rbx
-    movw %bx, 6(%rdi)       /* offset [16:31] in IDT(n).high */
-    shr  $16, %rbx
-    movl %ebx, 8(%rdi)      /* offset [32:63] */
-
-    add  $ISR_STUB_LEN, %rsi    /* index the next ISR stub */
-    add  $16, %rdi          /* index the next IDT entry */
-
-    loop .Lloop
-
-    lidt _idtr
-
-    ret
-END_FUNCTION(setup_idt)
-
-.data
-
-.balign 8
-DATA(_idtr)
-    .short _idt_end - _idt - 1  /* IDT limit */
-    .quad _idt
-END_DATA(_idtr)
-
-.balign 16
-/* interrupt descriptor table (IDT) */
-DATA(_idt)
-
-.set i, 0
-.rept NUM_INT
-    .short 0        /* low 16 bits of ISR offset (_isr#i & 0FFFFh) */
-    .short CODE_64_SELECTOR   /* selector */
-    .byte  0
-    .byte  0x8e     /* present, ring 0, 64-bit interrupt gate */
-    .short  0       /* high 16 bits of ISR offset (_isr#i / 65536) */
-    .short  0       /* ISR offset */
-    .short  0       /* ISR offset */
-    .short  0       /* 32bits Reserved */
-    .short  0       /* 32bits Reserved */
-
-.set i, i + 1
-.endr
-
-END_DATA(_idt)
-
-DATA(_idt_end)
-
-
