@@ -23,7 +23,7 @@
 #define LOCAL_TRACE 0
 
 void *page_alloc(size_t pages, int arena) {
-    void *result = pmm_alloc_kpages(pages, NULL);
+    void *result = pmm_alloc_kpages(pages, NULL, NULL);
     return result;
 }
 
@@ -31,11 +31,6 @@ void page_free(void *ptr, size_t pages) {
     DEBUG_ASSERT(IS_PAGE_ALIGNED((uintptr_t)ptr));
 
     pmm_free_kpages(ptr, pages);
-}
-
-int page_get_arenas(struct page_range *ranges, int number_of_ranges) {
-    ranges[0].address = kvaddr_get_range(&ranges[0].size);
-    return 1;
 }
 
 void *page_first_alloc(size_t *size_return) {
