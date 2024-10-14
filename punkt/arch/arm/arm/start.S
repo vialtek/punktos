@@ -1,10 +1,10 @@
-/*
- * Copyright (c) 2008-2015 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2015 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <lk/asm.h>
 #include <arch/arm/cores.h>
 #include <arch/arm/mmu.h>
@@ -31,22 +31,16 @@ platform_reset:
 
 .globl arm_reset
 arm_reset:
-#if ARM_WITH_HYP
-    /* if in HYP mode, move to SVC */
-    mrs r12, cpsr
-    and r12, r12, #0x1f
-    cmp r12, #0x1a
-    bleq arm32_hyp_to_svc
-#endif // ARM_WITH_HYP
-
     /* do some early cpu setup */
     mrc     p15, 0, r12, c1, c0, 0
     /* i/d cache disable, mmu disabled */
     bic     r12, #(1<<12)
     bic     r12, #(1<<2 | 1<<0)
+#if WITH_KERNEL_VM
     /* enable caches so atomics and spinlocks work */
     orr     r12, r12, #(1<<12)
     orr     r12, r12, #(1<<2)
+#endif // WITH_KERNEL_VM
     mcr     p15, 0, r12, c1, c0, 0
 
     /* calculate the physical offset from our eventual virtual location */
@@ -104,6 +98,7 @@ arm_reset:
 .Lrelocate_done:
 #endif // !WITH_NO_PHYS_RELOCATION
 
+#if ARM_WITH_MMU
 .Lsetup_mmu:
 
     /* set up the mmu according to mmu_initial_mappings */
@@ -209,6 +204,7 @@ arm_reset:
 
     /* set up the mmu */
     bl      .Lmmu_setup
+#endif // WITH_KERNEL_VM
 
     /* at this point we're running at our final location in virtual memory (if enabled) */
 .Lstack_setup:
@@ -264,19 +260,19 @@ arm_reset:
     bl      lk_main
     b       .
 
+#if WITH_KERNEL_VM
     /* per cpu mmu setup, shared between primary and secondary cpus
        args:
        r4 == translation table physical
        r8 == final translation table physical (if using trampoline)
     */
 .Lmmu_setup:
-    /* Invalidate TLB. The value in r0 is ignored */
-    mcr     p15, 0, r0, c8, c7, 0
-    dsb     sy
+    /* Invalidate TLB */
+    mov     r12, #0
+    mcr     p15, 0, r12, c8, c7, 0
     isb
 
     /* Write 0 to TTBCR */
-    mov     r12, #0
     mcr     p15, 0, r12, c2, c0, 2
     isb
 
@@ -284,7 +280,7 @@ arm_reset:
     orr     r12, r4, #MMU_TTBRx_FLAGS
 
     /* Write ttbr with phys addr of the translation table */
-    mcr     p15, 0, r12, c2, c0, 0  // TTBR0
+    mcr     p15, 0, r12, c2, c0, 0
     isb
 
     /* Write DACR */
@@ -313,16 +309,17 @@ arm_reset:
     /* Switch to main page table */
     mcr     p15, 0, r8, c2, c0, 0
     isb
-#endif // MMU_WITH_TRAMPOLINE
+#endif
 
-    /* Invalidate TLB. The value in r0 is ignored */
-    mcr     p15, 0, r0, c8, c7, 0
-    dsb     sy
+    /* Invalidate TLB */
+    mov     r12, #0
+    mcr     p15, 0, r12, c8, c7, 0
     isb
 
     /* assume lr was in physical memory, adjust it before returning */
     sub     lr, r11
     bx      lr
+#endif
 
 #if WITH_SMP
     /* secondary cpu entry point */
@@ -374,6 +371,7 @@ FUNCTION(arm_secondary_setup)
 
     mov     sp, r1
 
+#if WITH_KERNEL_VM
     /* load the physical base of the translation table and clear the table */
     ldr     r4, =arm_kernel_translation_table
     add     r4, r4, r11
@@ -388,10 +386,11 @@ FUNCTION(arm_secondary_setup)
     /* Calculate pagetable physical addresses */
     ldr     r4, =tt_trampoline  /* r4 = tt_trampoline vaddr */
     add     r4, r4, r11     /* r4 = tt_trampoline paddr */
-#endif // MMU_WITH_TRAMPOLINE
+#endif
 
     /* set up the mmu on this cpu and switch to virtual memory */
     bl      .Lmmu_setup
+#endif
 
     /* stay in supervisor and call into arm arch code to continue setup */
     mov     r0, r5
@@ -401,26 +400,16 @@ FUNCTION(arm_secondary_setup)
 unsupported_cpu_trap:
     wfe
     b       unsupported_cpu_trap
-#endif // WITH_SMP
-
-#if ARM_WITH_HYP
-arm32_hyp_to_svc:
-    mrs r12, cpsr
-    bic r12, #0x1f      // clear mode bits
-    orr r12, r12, #0x13 // set mode bits to SVC
-    msr SPSR_hyp, r12
-    msr ELR_hyp, lr
-    eret                // "restore" the mode, and return
-#endif // ARM_WITH_HYP
+#endif
 
 .ltorg
 
-#if MMU_WITH_TRAMPOLINE
+#if WITH_KERNEL_VM && MMU_WITH_TRAMPOLINE
 .section ".bss.prebss.translation_table"
 .align 14
 DATA(tt_trampoline)
     .skip 16384
-#endif // MMU_WITH_TRAMPOLINE
+#endif
 
 .data
 .align 2

@@ -1,10 +1,10 @@
-/*
- * Copyright (c) 2008-2012 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2012 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <lk/asm.h>
 #include <arch/ops.h>
 #include <arch/defines.h>
@@ -24,7 +24,7 @@ FUNCTION(arch_disable_cache)
     cpsid   iaf                         // interrupts disabled
 
 .Ldcache_disable:
-    tst     r0, #ARCH_CACHE_FLAG_DCACHE
+    tst     r0, #DCACHE
     beq     .Licache_disable
     mrc     p15, 0, r1, c1, c0, 0       // cr1
     tst     r1, #(1<<2)                 // is the dcache already disabled?
@@ -37,7 +37,7 @@ FUNCTION(arch_disable_cache)
     mcr     p15, 0, r0, c7, c10, 4      // data sync barrier (formerly drain write buffer)
 
 .Licache_disable:
-    tst     r0, #ARCH_CACHE_FLAG_ICACHE
+    tst     r0, #ICACHE
     beq     .Ldone_disable
 
     mrc     p15, 0, r1, c1, c0, 0       // cr1
@@ -57,7 +57,7 @@ FUNCTION(arch_enable_cache)
     cpsid   iaf                         // interrupts disabled
 
 .Ldcache_enable:
-    tst     r0, #ARCH_CACHE_FLAG_DCACHE
+    tst     r0, #DCACHE
     beq     .Licache_enable
     mrc     p15, 0, r1, c1, c0, 0       // cr1
     tst     r1, #(1<<2)                 // is the dcache already enabled?
@@ -69,7 +69,7 @@ FUNCTION(arch_enable_cache)
     mcr     p15, 0, r1, c1, c0, 0       // enable dcache
 
 .Licache_enable:
-    tst     r0, #ARCH_CACHE_FLAG_ICACHE
+    tst     r0, #ICACHE
     beq     .Ldone_enable
 
     mcr     p15, 0, r12, c7, c5, 0      // invalidate icache
@@ -94,7 +94,7 @@ FUNCTION(arch_disable_cache)
     cpsid   iaf                         // interrupts disabled
 
 .Ldcache_disable:
-    tst     r7, #ARCH_CACHE_FLAG_DCACHE
+    tst     r7, #DCACHE
     beq     .Licache_disable
     mrc     p15, 0, r0, c1, c0, 0       // cr1
     tst     r0, #(1<<2)                 // is the dcache already disabled?
@@ -124,7 +124,7 @@ FUNCTION(arch_disable_cache)
 #endif
 
 .Licache_disable:
-    tst     r7, #ARCH_CACHE_FLAG_ICACHE
+    tst     r7, #ICACHE
     beq     .Ldone_disable
 
     mrc     p15, 0, r0, c1, c0, 0       // cr1
@@ -149,7 +149,7 @@ FUNCTION(arch_enable_cache)
     cpsid   iaf                         // interrupts disabled
 
 .Ldcache_enable:
-    tst     r7, #ARCH_CACHE_FLAG_DCACHE
+    tst     r7, #DCACHE
     beq     .Licache_enable
     mrc     p15, 0, r0, c1, c0, 0       // cr1
     tst     r0, #(1<<2)                 // is the dcache already enabled?
@@ -171,7 +171,7 @@ FUNCTION(arch_enable_cache)
     mcr     p15, 0, r0, c1, c0, 0       // enable dcache
 
 .Licache_enable:
-    tst     r7, #ARCH_CACHE_FLAG_ICACHE
+    tst     r7, #ICACHE
     beq     .Ldone_enable
 
     mov     r0, #0
@@ -308,7 +308,12 @@ FUNCTION(arch_clean_cache_range)
     mcr     p15, 0, r0, c7, c10, 4      // data sync barrier
 #endif
 #endif
+#if WITH_DEV_CACHE_PL310
+    mov     r0, r3                      // put the start address back
+    b       pl310_clean_range
+#else
     bx      lr
+#endif
 
     /* void arch_flush_invalidate_cache_range(addr_t start, size_t len); */
 FUNCTION(arch_clean_invalidate_cache_range)
@@ -329,7 +334,12 @@ FUNCTION(arch_clean_invalidate_cache_range)
     mcr     p15, 0, r0, c7, c10, 4      // data sync barrier
 #endif
 #endif
+#if WITH_DEV_CACHE_PL310
+    mov     r0, r3                      // put the start address back
+    b       pl310_clean_invalidate_range
+#else
     bx      lr
+#endif
 
     /* void arch_invalidate_cache_range(addr_t start, size_t len); */
 FUNCTION(arch_invalidate_cache_range)
@@ -350,7 +360,12 @@ FUNCTION(arch_invalidate_cache_range)
     mcr     p15, 0, r0, c7, c10, 4      // data sync barrier
 #endif
 #endif
+#if WITH_DEV_CACHE_PL310
+    mov     r0, r3                      // put the start address back
+    b       pl310_invalidate_range
+#else
     bx      lr
+#endif
 
     /* void arch_sync_cache_range(addr_t start, size_t len); */
 FUNCTION(arch_sync_cache_range)

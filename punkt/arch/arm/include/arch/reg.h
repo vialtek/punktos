@@ -39,5 +39,3 @@
     __asm__ volatile("strh %1, %0" : "=m"(*(addr)) : "r"(val) : "memory")
 #define _ARCH_MMIO_WRITE32(addr, val) \
     __asm__ volatile("str %1, %0" : "=m"(*(addr)) : "r"(val) : "memory")
-
-

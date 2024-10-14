@@ -1,10 +1,16 @@
+# Copyright 2016 The Fuchsia Authors
+# Copyright (c) 2008-2015 Travis Geiselbrecht
+#
+# Use of this source code is governed by a MIT-style
+# license that can be found in the LICENSE file or at
+# https://opensource.org/licenses/MIT
+
 ifndef ARCH_arm_TOOLCHAIN_INCLUDED
 ARCH_arm_TOOLCHAIN_INCLUDED := 1
 
 # try to find the toolchain
 ifndef ARCH_arm_TOOLCHAIN_PREFIX
 
-$(info $(TOOLCHAIN_PREFIX))
 # if TOOLCHAIN_PREFIX is not empty, try to use it first
 ifneq ($(TOOLCHAIN_PREFIX),)
 ARCH_arm_TOOLCHAIN_PREFIX := $(TOOLCHAIN_PREFIX)
@@ -48,28 +54,31 @@ FOUNDTOOL=$(shell which $(ARCH_arm_TOOLCHAIN_PREFIX)gcc)
 endif # ARCH_arm_TOOLCHAIN_PREFIX
 
 ifeq ($(FOUNDTOOL),)
-$(warning cannot find toolchain in path, assuming arm-eabi- prefix)
-ARCH_arm_TOOLCHAIN_PREFIX := arm-eabi-
+$(error cannot find toolchain, please set ARCH_arm_TOOLCHAIN_PREFIX or add it to your path)
 endif
 
 ifeq ($(ARM_CPU),cortex-a7)
 ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-ARCH_arm_COMPILEFLAGS_FLOAT += -mfpu=vfpv3 -mfloat-abi=softfp
+ARCH_arm_COMPILEFLAGS += -mfpu=vfpv3 -mfloat-abi=softfp
 endif
 ifeq ($(ARM_CPU),cortex-a8)
 ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-ARCH_arm_COMPILEFLAGS_FLOAT += -mfpu=neon -mfloat-abi=softfp
+ARCH_arm_COMPILEFLAGS += -mfpu=neon -mfloat-abi=softfp
 endif
 ifeq ($(ARM_CPU),cortex-a9)
 ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
 endif
 ifeq ($(ARM_CPU),cortex-a9-neon)
 ARCH_arm_COMPILEFLAGS += -mcpu=cortex-a9
-ARCH_arm_COMPILEFLAGS_FLOAT += -mfpu=neon -mfloat-abi=softfp
+# XXX cannot enable neon right now because compiler generates
+# neon code for 64bit integer ops
+ARCH_arm_COMPILEFLAGS += -mfpu=vfpv3 -mfloat-abi=softfp
 endif
 ifeq ($(ARM_CPU),cortex-a15)
 ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-ARCH_arm_COMPILEFLAGS_FLOAT += -mfpu=neon -mfloat-abi=softfp
+ifneq ($(ARM_WITHOUT_VFP_NEON),true)
+ARCH_arm_COMPILEFLAGS += -mfpu=vfpv3 -mfloat-abi=softfp
+endif
 endif
 ifeq ($(ARM_CPU),arm1136j-s)
 ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)

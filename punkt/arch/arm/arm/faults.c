@@ -1,16 +1,21 @@
-/*
- * Copyright (c) 2008-2014 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2014 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <lk/debug.h>
 #include <lk/bits.h>
+#include <lk/err.h>
 #include <arch/arm.h>
 #include <kernel/thread.h>
 #include <platform.h>
-#include <stdlib.h>
+
+#if WITH_LIB_MAGENTA
+#include <lib/user_copy.h>
+#include <magenta/exception.h>
+#endif
 
 struct fault_handler_table_entry {
     uint32_t pc;
@@ -20,7 +25,8 @@ struct fault_handler_table_entry {
 extern struct fault_handler_table_entry __fault_handler_table_start[];
 extern struct fault_handler_table_entry __fault_handler_table_end[];
 
-static void dump_mode_regs(uint32_t spsr, uint32_t svc_r13, uint32_t svc_r14) {
+static void dump_mode_regs(uint32_t spsr, uint32_t svc_r13, uint32_t svc_r14)
+{
     struct arm_mode_regs regs;
     arm_save_mode_regs(&regs);
 
@@ -55,16 +61,13 @@ static void dump_mode_regs(uint32_t spsr, uint32_t svc_r13, uint32_t svc_r14) {
     }
 
     if (stack != 0) {
-        dprintf(CRITICAL, "stack pointer at 0x%08x:\n", (unsigned int)stack);
-
-        /* Avoid crossing page-boundary in case near stack base */
-        const size_t used_stack = PAGE_SIZE - ((unsigned int)stack % PAGE_SIZE);
-
-        hexdump((void *)stack, MIN(used_stack, 128));
+        dprintf(CRITICAL, "bottom of stack at 0x%08x:\n", (unsigned int)stack);
+        hexdump((void *)stack, 128);
     }
 }
 
-static void dump_fault_frame(struct arm_fault_frame *frame) {
+static void dump_fault_frame(struct arm_fault_frame *frame)
+{
     struct thread *current_thread = get_current_thread();
 
     dprintf(CRITICAL, "current_thread %p, name %s\n",
@@ -79,7 +82,8 @@ static void dump_fault_frame(struct arm_fault_frame *frame) {
     dump_mode_regs(frame->spsr, (uintptr_t)(frame + 1), frame->lr);
 }
 
-static void dump_iframe(struct arm_iframe *frame) {
+static void dump_iframe(struct arm_iframe *frame)
+{
     dprintf(CRITICAL, "r0  0x%08x r1  0x%08x r2  0x%08x r3  0x%08x\n", frame->r0, frame->r1, frame->r2, frame->r3);
     dprintf(CRITICAL, "r12 0x%08x usp 0x%08x ulr 0x%08x pc  0x%08x\n", frame->r12, frame->usp, frame->ulr, frame->pc);
     dprintf(CRITICAL, "spsr 0x%08x\n", frame->spsr);
@@ -87,7 +91,8 @@ static void dump_iframe(struct arm_iframe *frame) {
     dump_mode_regs(frame->spsr, (uintptr_t)(frame + 1), frame->lr);
 }
 
-static void exception_die(struct arm_fault_frame *frame, const char *msg) {
+static void exception_die(struct arm_fault_frame *frame, const char *msg)
+{
     dprintf(CRITICAL, msg);
     dump_fault_frame(frame);
 
@@ -95,7 +100,8 @@ static void exception_die(struct arm_fault_frame *frame, const char *msg) {
     for (;;);
 }
 
-static void exception_die_iframe(struct arm_iframe *frame, const char *msg) {
+static void exception_die_iframe(struct arm_iframe *frame, const char *msg)
+{
     dprintf(CRITICAL, msg);
     dump_iframe(frame);
 
@@ -103,13 +109,20 @@ static void exception_die_iframe(struct arm_iframe *frame, const char *msg) {
     for (;;);
 }
 
-void arm_syscall_handler(struct arm_fault_frame *frame);
-__WEAK void arm_syscall_handler(struct arm_fault_frame *frame) {
+__WEAK void arm_syscall_handler(struct arm_fault_frame *frame)
+{
     exception_die(frame, "unhandled syscall, halting\n");
 }
 
-void arm_undefined_handler(struct arm_iframe *frame);
-void arm_undefined_handler(struct arm_iframe *frame) {
+#if WITH_LIB_MAGENTA
+struct arch_exception_context {
+    bool iframe;
+    void *frame;
+};
+#endif
+
+void arm_undefined_handler(struct arm_iframe *frame)
+{
     /* look at the undefined instruction, figure out if it's something we can handle */
     bool in_thumb = frame->spsr & (1<<5);
     if (in_thumb) {
@@ -147,6 +160,16 @@ void arm_undefined_handler(struct arm_iframe *frame) {
     }
 #endif
 
+#if WITH_LIB_MAGENTA
+    // let magenta get a shot at it
+    struct arch_exception_context context = { .iframe = true, .frame = frame };
+    arch_enable_ints();
+    status_t erc = magenta_exception_handler(EXC_UNDEFINED_INSTRUCTION, &context, frame->pc);
+    arch_disable_ints();
+    if (erc == NO_ERROR)
+        return;
+#endif
+
     exception_die_iframe(frame, "undefined abort, halting\n");
     return;
 
@@ -156,14 +179,57 @@ fpu:
 #endif
 }
 
-void arm_data_abort_handler(struct arm_fault_frame *frame);
-void arm_data_abort_handler(struct arm_fault_frame *frame) {
-    struct fault_handler_table_entry *fault_handler;
+static status_t arm_shared_page_fault_handler(struct arm_fault_frame *frame, uint32_t fsr, uint32_t far,
+        bool instruction_fault)
+{
+    // decode the fault status (from table B3-23) and see if we need to call into the VMM for a page fault
+    uint32_t fault_status = (BIT(fsr, 10) ? (1<<4) : 0) |  BITS(fsr, 3, 0);
+    switch (fault_status) {
+        case 0b01101:
+        case 0b01111: // permission fault
+            // XXX add flag for permission
+            PANIC_UNIMPLEMENTED;
+        case 0b00101:
+        case 0b00111: { // translation fault
+            
+            // TODO: enable when VM is implemented
+
+            // bool write = !!BIT(fsr, 11);
+            // bool user = (frame->spsr & CPSR_MODE_MASK) == CPSR_MODE_USR;
+
+            // uint pf_flags = 0;
+            // pf_flags |= write ? VMM_PF_FLAG_WRITE : 0;
+            // pf_flags |= user ? VMM_PF_FLAG_USER : 0;
+            // pf_flags |= instruction_fault ? VMM_PF_FLAG_INSTRUCTION : 0;
+
+            // arch_enable_ints();
+            // status_t err = vmm_page_fault_handler(far, pf_flags);
+            // arch_disable_ints();
+            // return err;
+        }
+        case 0b00011:
+        case 0b00110: // access flag fault
+            // XXX not doing access flag yet
+            break;
+        case 0b01001:
+        case 0b01011: // domain fault
+            // XXX can we get these?
+            break;
+    }
+
+    return ERR_FAULT;
+}
+
+void arm_data_abort_handler(struct arm_fault_frame *frame)
+{
     uint32_t fsr = arm_read_dfsr();
     uint32_t far = arm_read_dfar();
 
-    uint32_t fault_status = (BIT(fsr, 10) ? (1<<4) : 0) |  BITS(fsr, 3, 0);
+    // see if the page fault handler can deal with it
+    if (likely(arm_shared_page_fault_handler(frame, fsr, far, false)) == NO_ERROR)
+        return;
 
+    struct fault_handler_table_entry *fault_handler;
     for (fault_handler = __fault_handler_table_start; fault_handler < __fault_handler_table_end; fault_handler++) {
         if (fault_handler->pc == frame->pc) {
             frame->pc = fault_handler->fault_handler;
@@ -171,10 +237,22 @@ void arm_data_abort_handler(struct arm_fault_frame *frame) {
         }
     }
 
+#if WITH_LIB_MAGENTA
+    // let magenta get a shot at it
+    struct arch_exception_context context = { .iframe = false, .frame = frame };
+    arch_enable_ints();
+    status_t erc = magenta_exception_handler(EXC_FATAL_PAGE_FAULT, &context, frame->pc);
+    arch_disable_ints();
+    if (erc == NO_ERROR)
+        return;
+#endif
+
+    // at this point we're dumping state and panicing
     dprintf(CRITICAL, "\n\ncpu %u data abort, ", arch_curr_cpu_num());
     bool write = !!BIT(fsr, 11);
 
     /* decode the fault status (from table B3-23) */
+    uint32_t fault_status = (BIT(fsr, 10) ? (1<<4) : 0) |  BITS(fsr, 3, 0);
     switch (fault_status) {
         case 0b00001: // alignment fault
             dprintf(CRITICAL, "alignment fault on %s\n", write ? "write" : "read");
@@ -223,10 +301,24 @@ void arm_data_abort_handler(struct arm_fault_frame *frame) {
     exception_die(frame, "halting\n");
 }
 
-void arm_prefetch_abort_handler(struct arm_fault_frame *frame);
-void arm_prefetch_abort_handler(struct arm_fault_frame *frame) {
+void arm_prefetch_abort_handler(struct arm_fault_frame *frame)
+{
     uint32_t fsr = arm_read_ifsr();
     uint32_t far = arm_read_ifar();
+
+    // see if the page fault handler can deal with it
+    if (likely(arm_shared_page_fault_handler(frame, fsr, far, true)) == NO_ERROR)
+        return;
+
+#if WITH_LIB_MAGENTA
+    // let magenta get a shot at it
+    struct arch_exception_context context = { .iframe = false, .frame = frame };
+    arch_enable_ints();
+    status_t erc = magenta_exception_handler(EXC_FATAL_PAGE_FAULT, &context, frame->pc);
+    arch_disable_ints();
+    if (erc == NO_ERROR)
+        return;
+#endif
 
     uint32_t fault_status = (BIT(fsr, 10) ? (1<<4) : 0) |  BITS(fsr, 3, 0);
 
@@ -280,3 +372,30 @@ void arm_prefetch_abort_handler(struct arm_fault_frame *frame) {
 
     exception_die(frame, "halting\n");
 }
+
+#if WITH_LIB_MAGENTA
+void arch_dump_exception_context(arch_exception_context_t *context)
+{
+    // based on context, this could have been a iframe or a full fault frame
+    uint32_t usp = 0;
+    if (context->iframe) {
+        struct arm_iframe *iframe = context->frame;
+        dump_iframe(iframe);
+        usp = iframe->usp;
+    } else {
+        struct arm_fault_frame *frame = context->frame;
+        dump_fault_frame(frame);
+        usp = frame->usp;
+    }
+
+    // try to dump the user stack
+    if (is_user_address(usp)) {
+        uint8_t buf[256];
+        if (copy_from_user(buf, (void *)usp, sizeof(buf)) == NO_ERROR) {
+            printf("bottom of user stack at 0x%lx:\n", (vaddr_t)usp);
+            hexdump_ex(buf, sizeof(buf), usp);
+        }
+    }
+}
+#endif
+

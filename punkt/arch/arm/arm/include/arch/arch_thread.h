@@ -1,14 +1,16 @@
-/*
- * Copyright (c) 2008-2014 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
-#ifndef __ARM_ARCH_THREAD_H
-#define __ARM_ARCH_THREAD_H
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2014 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
 
+#pragma once
+
+#include <lk/compiler.h>
 #include <sys/types.h>
+
+__BEGIN_CDECLS
 
 struct arch_thread {
     vaddr_t sp;
@@ -23,5 +25,4 @@ struct arch_thread {
 #endif
 };
 
-#endif
-
+__END_CDECLS

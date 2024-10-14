@@ -1,10 +1,10 @@
-/*
- * Copyright (c) 2015 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2015 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <lk/trace.h>
 #include <lk/err.h>
 #include <malloc.h>
@@ -26,7 +26,8 @@ struct dcc_state {
 #define SLOW_POLL_RATE 100
 #define FAST_POLL_TIMEOUT 5
 
-static int dcc_worker_entry(void *arg) {
+static int dcc_worker_entry(void *arg)
+{
     struct dcc_state *dcc = (struct dcc_state *)arg;
     lk_time_t fast_poll_start;
     bool fast_poll;
@@ -57,7 +58,8 @@ static int dcc_worker_entry(void *arg) {
     return 0;
 }
 
-status_t arm_dcc_enable(dcc_rx_callback_t rx_callback) {
+status_t arm_dcc_enable(dcc_rx_callback_t rx_callback)
+{
     struct dcc_state *state = malloc(sizeof(struct dcc_state));
     if (!state)
         return ERR_NO_MEMORY;
@@ -71,7 +73,8 @@ status_t arm_dcc_enable(dcc_rx_callback_t rx_callback) {
     return NO_ERROR;
 }
 
-bool arm_dcc_read_available(void) {
+bool arm_dcc_read_available(void)
+{
     uint32_t dscr = arm_read_dbgdscr();
     if (dscr & (1<<30)) { // rx full
         return true;
@@ -80,7 +83,8 @@ bool arm_dcc_read_available(void) {
     }
 }
 
-ssize_t arm_dcc_read(uint32_t *buf, size_t len, lk_time_t timeout) {
+ssize_t arm_dcc_read(uint32_t *buf, size_t len, lk_time_t timeout)
+{
     lk_time_t start = 0;
 
     if (timeout != 0)
@@ -105,7 +109,8 @@ ssize_t arm_dcc_read(uint32_t *buf, size_t len, lk_time_t timeout) {
     return count;
 }
 
-ssize_t arm_dcc_write(const uint32_t *buf, size_t len, lk_time_t timeout) {
+ssize_t arm_dcc_write(const uint32_t *buf, size_t len, lk_time_t timeout)
+{
     lk_time_t start = 0;
 
     if (timeout != 0)
@@ -129,14 +134,16 @@ ssize_t arm_dcc_write(const uint32_t *buf, size_t len, lk_time_t timeout) {
     return count;
 }
 
-static void dcc_rx_callback(uint32_t val) {
+static void dcc_rx_callback(uint32_t val)
+{
     static int count = 0;
     count += 4;
     if ((count % 1000) == 0)
         printf("count %d\n", count);
 }
 
-static int cmd_dcc(int argc, const console_cmd_args *argv) {
+static int cmd_dcc(int argc, const cmd_args *argv)
+{
     static bool dcc_started = false;
 
     if (argc < 2) {
@@ -181,4 +188,3 @@ STATIC_COMMAND_START
 STATIC_COMMAND("dcc", "dcc stuff", &cmd_dcc)
 #endif
 STATIC_COMMAND_END(dcc);
-

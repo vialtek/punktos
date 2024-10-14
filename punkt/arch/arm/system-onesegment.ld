@@ -1,3 +1,11 @@
+/*
+// Copyright 2016 The Fuchsia Authors
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+*/
+
 OUTPUT_FORMAT("elf32-littlearm", "elf32-littlearm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
 
@@ -11,6 +19,7 @@ SECTIONS
     /* text/read-only data */
     /* set the load address to physical MEMBASE */
     .text : AT(%MEMBASE% + %KERNEL_LOAD_OFFSET%) {
+        __code_start = .;
         KEEP(*(.text.boot.vectab1))
         KEEP(*(.text.boot.vectab2))
         KEEP(*(.text.boot))
@@ -49,7 +58,11 @@ SECTIONS
     .ARM.exidx : { *(.ARM.exidx* .gnu.linkonce.armexidx.*) }
     __exidx_end = .;
 
-    .rodata : ALIGN(4) {
+    .dummy_post_text : {
+        __code_end = .;
+    }
+
+    .rodata : ALIGN(4096) {
         __rodata_start = .;
         __fault_handler_table_start = .;
         KEEP(*(.rodata.fault_handler_table))
@@ -66,12 +79,13 @@ SECTIONS
         __rodata_end = .;
     }
 
-    .data : ALIGN(4) {
+    .data : ALIGN(4096) {
         /* writable data  */
         __data_start_rom = .;
         /* in one segment binaries, the rom data address is on top of the ram data address */
         __data_start = .;
         *(.data .data.* .gnu.linkonce.d.*)
+        *(.bootfs)
     }
 
     .ctors : ALIGN(4) {
@@ -96,8 +110,8 @@ SECTIONS
         __data_end = .;
     }
 
-    /* uninitialized data (in same segment as writable data) */
-    .bss : ALIGN(4) {
+    /* unintialized data (in same segment as writable data) */
+    .bss : ALIGN(4096) {
         KEEP(*(.bss.prebss.*))
         . = ALIGN(4);
         __bss_start = .;
@@ -108,11 +122,12 @@ SECTIONS
         __bss_end = .;
     }
 
+    . = ALIGN(4096);
     _end = .;
 
     . = %KERNEL_BASE% + %MEMSIZE%;
     _end_of_ram = .;
 
     /* Strip unnecessary stuff */
-    /DISCARD/ : { *(.comment .note .eh_frame) }
+    /DISCARD/ : { *(.comment .note) }
 }

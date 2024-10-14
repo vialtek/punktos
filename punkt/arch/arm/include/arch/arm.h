@@ -1,12 +1,11 @@
-/*
- * Copyright (c) 2008-2013 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
-#ifndef __ARCH_ARM_H
-#define __ARCH_ARM_H
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2013 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
+#pragma once
 
 #include <stdbool.h>
 #include <sys/types.h>
@@ -39,7 +38,8 @@ void arm_context_switch(vaddr_t *old_sp, vaddr_t new_sp);
 
 void arm_chain_load(paddr_t entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3) __NO_RETURN;
 
-static inline uint32_t read_cpsr(void) {
+static inline uint32_t read_cpsr(void)
+{
     uint32_t cpsr;
 
     __asm__ volatile("mrs   %0, cpsr" : "=r" (cpsr));
@@ -237,5 +237,3 @@ void arm_fpu_thread_swap(struct thread *oldthread, struct thread *newthread);
 #endif
 
 __END_CDECLS
-
-#endif

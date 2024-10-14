@@ -1,12 +1,11 @@
-/*
- * Copyright (c) 2008-2012 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
-#ifndef __ARM_CORES_H
-#define __ARM_CORES_H
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2012 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
+#pragma once
 
 /*
  * make the gcc built in define a little easier to deal with
@@ -90,6 +89,4 @@
 #ifndef ARM_ARCH_LEVEL
 #define ARM_ARCH_LEVEL 4
 #endif
-#endif
-
 #endif
