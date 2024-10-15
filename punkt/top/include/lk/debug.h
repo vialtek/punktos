@@ -30,7 +30,7 @@ __BEGIN_CDECLS
 FILE *get_panic_fd(void);
 
 /* dump memory */
-void hexdump(const void *ptr, size_t len);
+void hexdump_ex(const void *ptr, size_t len, uint64_t disp_addr_start);
 void hexdump8_ex(const void *ptr, size_t len, uint64_t disp_addr_start);
 
 #else
@@ -39,10 +39,14 @@ void hexdump8_ex(const void *ptr, size_t len, uint64_t disp_addr_start);
 static inline FILE *get_panic_fd(void) { return NULL; }
 
 /* dump memory */
-static inline void hexdump(const void *ptr, size_t len) { }
+static inline void hexdump_ex(const void *ptr, size_t len, uint64_t disp_addr_start) { }
 static inline void hexdump8_ex(const void *ptr, size_t len, uint64_t disp_addr_start) { }
 
 #endif /* DISABLE_DEBUG_OUTPUT */
+
+static inline void hexdump(const void *ptr, size_t len) {
+    hexdump_ex(ptr, len, (uint64_t)((addr_t)ptr));
+}
 
 static inline void hexdump8(const void *ptr, size_t len) {
     hexdump8_ex(ptr, len, (uint64_t)((addr_t)ptr));
