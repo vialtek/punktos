@@ -194,68 +194,69 @@ static void print_pat_entries(void *_ignored)
     }
 }
 
-static int cmd_memtype(int argc, const cmd_args *argv)
-{
-    if (argc < 2) {
-notenoughargs:
-        printf("not enough arguments\n");
-usage:
-        printf("usage:\n");
-        printf("%s mtrr\n", argv[0].str);
-        printf("%s pat\n", argv[0].str);
-        return ERR_GENERIC;
-    }
+// TODO: fix command functionality
+// static int cmd_memtype(int argc, const cmd_args *argv)
+// {
+//     if (argc < 2) {
+// notenoughargs:
+//         printf("not enough arguments\n");
+// usage:
+//         printf("usage:\n");
+//         printf("%s mtrr\n", argv[0].str);
+//         printf("%s pat\n", argv[0].str);
+//         return ERR_GENERIC;
+//     }
 
-    if (!strcmp(argv[1].str, "mtrr")) {
-        bool print_fixed = false;
-        if (argc > 2) {
-            if (!strcmp(argv[2].str, "-f")) {
-                print_fixed = true;
-            } else {
-                printf("usage: %s mtrr [-f]\n", argv[0].str);
-                printf("  -f    Display fixed registers\n");
-                return ERR_GENERIC;
-            }
-        }
-        uint64_t default_type = read_msr(IA32_MTRR_DEF_TYPE);
-        printf("MTRR state: master %s, fixed %s\n",
-               MTRR_DEF_TYPE_ENABLE(default_type) ? "enable" : "disable",
-               MTRR_DEF_TYPE_FIXED_ENABLE(default_type) ? "enable" : "disable");
-        printf("  default: %#02x\n", MTRR_DEF_TYPE_TYPE(default_type));
-        if (supports_fixed_range && print_fixed) {
-            print_fixed_range_mtrr(IA32_MTRR_FIX64K_00000, 0x00000, (1 << 16));
-            print_fixed_range_mtrr(IA32_MTRR_FIX16K_80000, 0x80000, (1 << 14));
-            print_fixed_range_mtrr(IA32_MTRR_FIX16K_A0000, 0xA0000, (1 << 14));
-            for (int i = 0; i < IA32_MTRR_NUM_FIX4K; ++i) {
-                print_fixed_range_mtrr(IA32_MTRR_FIX4K_C0000(i), 0xC0000 + i * (1<<15), (1 << 12));
-            }
-        }
+//     if (!strcmp(argv[1].str, "mtrr")) {
+//         bool print_fixed = false;
+//         if (argc > 2) {
+//             if (!strcmp(argv[2].str, "-f")) {
+//                 print_fixed = true;
+//             } else {
+//                 printf("usage: %s mtrr [-f]\n", argv[0].str);
+//                 printf("  -f    Display fixed registers\n");
+//                 return ERR_GENERIC;
+//             }
+//         }
+//         uint64_t default_type = read_msr(IA32_MTRR_DEF_TYPE);
+//         printf("MTRR state: master %s, fixed %s\n",
+//                MTRR_DEF_TYPE_ENABLE(default_type) ? "enable" : "disable",
+//                MTRR_DEF_TYPE_FIXED_ENABLE(default_type) ? "enable" : "disable");
+//         printf("  default: %#02x\n", MTRR_DEF_TYPE_TYPE(default_type));
+//         if (supports_fixed_range && print_fixed) {
+//             print_fixed_range_mtrr(IA32_MTRR_FIX64K_00000, 0x00000, (1 << 16));
+//             print_fixed_range_mtrr(IA32_MTRR_FIX16K_80000, 0x80000, (1 << 14));
+//             print_fixed_range_mtrr(IA32_MTRR_FIX16K_A0000, 0xA0000, (1 << 14));
+//             for (int i = 0; i < IA32_MTRR_NUM_FIX4K; ++i) {
+//                 print_fixed_range_mtrr(IA32_MTRR_FIX4K_C0000(i), 0xC0000 + i * (1<<15), (1 << 12));
+//             }
+//         }
 
-        for (uint i = 0; i < num_variable; ++i) {
-            uint64_t base = read_msr(IA32_MTRR_PHYSBASE(i));
-            uint64_t mask = read_msr(IA32_MTRR_PHYSMASK(i));
-            printf("  v (%s) base %#016llx, mask %#016llx: %#02x\n",
-                   MTRR_PHYSMASK_VALID(mask) ? "valid" : "invalid",
-                   MTRR_PHYSBASE_BASE(base),
-                   MTRR_PHYSMASK_MASK(mask),
-                   MTRR_PHYSBASE_TYPE(base));
-        }
-    } else if (!strcmp(argv[1].str, "pat")) {
-        uint num_cpus = arch_max_num_cpus();
-        for (uint i = 0; i < num_cpus; ++i) {
-            printf("CPU %u Page Attribute Table types:\n", i);
-            mp_sync_exec(1 << i, print_pat_entries, NULL);
-        }
-    } else {
-        printf("unknown command\n");
-        goto usage;
-    }
+//         for (uint i = 0; i < num_variable; ++i) {
+//             uint64_t base = read_msr(IA32_MTRR_PHYSBASE(i));
+//             uint64_t mask = read_msr(IA32_MTRR_PHYSMASK(i));
+//             printf("  v (%s) base %#016llx, mask %#016llx: %#02x\n",
+//                    MTRR_PHYSMASK_VALID(mask) ? "valid" : "invalid",
+//                    MTRR_PHYSBASE_BASE(base),
+//                    MTRR_PHYSMASK_MASK(mask),
+//                    MTRR_PHYSBASE_TYPE(base));
+//         }
+//     } else if (!strcmp(argv[1].str, "pat")) {
+//         uint num_cpus = arch_max_num_cpus();
+//         for (uint i = 0; i < num_cpus; ++i) {
+//             printf("CPU %u Page Attribute Table types:\n", i);
+//             mp_sync_exec(1 << i, print_pat_entries, NULL);
+//         }
+//     } else {
+//         printf("unknown command\n");
+//         goto usage;
+//     }
 
-    return NO_ERROR;
-}
+//     return NO_ERROR;
+// }
 
-STATIC_COMMAND_START
-#if LK_DEBUGLEVEL > 0
-STATIC_COMMAND("memtype", "memory type commands", &cmd_memtype)
-#endif
-STATIC_COMMAND_END(memtype);
+// STATIC_COMMAND_START
+// #if LK_DEBUGLEVEL > 0
+// STATIC_COMMAND("memtype", "memory type commands", &cmd_memtype)
+// #endif
+// STATIC_COMMAND_END(memtype);

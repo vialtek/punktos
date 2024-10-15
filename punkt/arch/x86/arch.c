@@ -114,29 +114,30 @@ void x86_secondary_entry(uint8_t asm_cpu_num, volatile int *aps_still_booting)
 }
 #endif
 
-static int cmd_cpu(int argc, const cmd_args *argv)
-{
-    if (argc < 2) {
-notenoughargs:
-        printf("not enough arguments\n");
-usage:
-        printf("usage:\n");
-        printf("%s features\n", argv[0].str);
-        return ERR_GENERIC;
-    }
+// TODO: fix command functionality
+// static int cmd_cpu(int argc, const cmd_args *argv)
+// {
+//     if (argc < 2) {
+// notenoughargs:
+//         printf("not enough arguments\n");
+// usage:
+//         printf("usage:\n");
+//         printf("%s features\n", argv[0].str);
+//         return ERR_GENERIC;
+//     }
 
-    if (!strcmp(argv[1].str, "features")) {
-        x86_feature_debug();
-    } else {
-        printf("unknown command\n");
-        goto usage;
-    }
+//     if (!strcmp(argv[1].str, "features")) {
+//         x86_feature_debug();
+//     } else {
+//         printf("unknown command\n");
+//         goto usage;
+//     }
 
-    return NO_ERROR;
-}
+//     return NO_ERROR;
+// }
 
-STATIC_COMMAND_START
-#if LK_DEBUGLEVEL > 0
-STATIC_COMMAND("cpu", "cpu info commands", &cmd_cpu)
-#endif
-STATIC_COMMAND_END(cpu);
+// STATIC_COMMAND_START
+// #if LK_DEBUGLEVEL > 0
+// STATIC_COMMAND("cpu", "cpu info commands", &cmd_cpu)
+// #endif
+// STATIC_COMMAND_END(cpu);

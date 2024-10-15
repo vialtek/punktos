@@ -142,49 +142,50 @@ static void dcc_rx_callback(uint32_t val)
         printf("count %d\n", count);
 }
 
-static int cmd_dcc(int argc, const cmd_args *argv)
-{
-    static bool dcc_started = false;
+// TODO: fix commands functionality
+// static int cmd_dcc(int argc, const cmd_args *argv)
+// {
+//     static bool dcc_started = false;
 
-    if (argc < 2) {
-        printf("not enough args\n");
-        return -1;
-    }
+//     if (argc < 2) {
+//         printf("not enough args\n");
+//         return -1;
+//     }
 
-    if (!strcmp(argv[1].str, "start")) {
-        if (!dcc_started) {
-            printf("starting dcc\n");
+//     if (!strcmp(argv[1].str, "start")) {
+//         if (!dcc_started) {
+//             printf("starting dcc\n");
 
-            status_t err = arm_dcc_enable(&dcc_rx_callback);
-            printf("arm_dcc_enable returns %d\n", err);
-            dcc_started = true;
-        }
-    } else if (!strcmp(argv[1].str, "write")) {
-        for (int i = 2; i < argc; i++) {
-            uint32_t buf[128];
-            size_t len = strlen(argv[i].str);
-            for (uint j = 0; j < len; j++) {
-                buf[j] = argv[i].str[j];
-            }
-            arm_dcc_write(buf, strlen(argv[i].str), 1000);
-        }
-    } else if (!strcmp(argv[1].str, "read")) {
-        uint32_t buf[128];
+//             status_t err = arm_dcc_enable(&dcc_rx_callback);
+//             printf("arm_dcc_enable returns %d\n", err);
+//             dcc_started = true;
+//         }
+//     } else if (!strcmp(argv[1].str, "write")) {
+//         for (int i = 2; i < argc; i++) {
+//             uint32_t buf[128];
+//             size_t len = strlen(argv[i].str);
+//             for (uint j = 0; j < len; j++) {
+//                 buf[j] = argv[i].str[j];
+//             }
+//             arm_dcc_write(buf, strlen(argv[i].str), 1000);
+//         }
+//     } else if (!strcmp(argv[1].str, "read")) {
+//         uint32_t buf[128];
 
-        ssize_t len = arm_dcc_read(buf, sizeof(buf), 1000);
-        printf("arm_dcc_read returns %ld\n", len);
-        if (len > 0) {
-            hexdump(buf, len);
-        }
-    } else {
-        printf("unknown args\n");
-    }
+//         ssize_t len = arm_dcc_read(buf, sizeof(buf), 1000);
+//         printf("arm_dcc_read returns %ld\n", len);
+//         if (len > 0) {
+//             hexdump(buf, len);
+//         }
+//     } else {
+//         printf("unknown args\n");
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
-STATIC_COMMAND_START
-#if LK_DEBUGLEVEL > 1
-STATIC_COMMAND("dcc", "dcc stuff", &cmd_dcc)
-#endif
-STATIC_COMMAND_END(dcc);
+// STATIC_COMMAND_START
+// #if LK_DEBUGLEVEL > 1
+// STATIC_COMMAND("dcc", "dcc stuff", &cmd_dcc)
+// #endif
+// STATIC_COMMAND_END(dcc);
