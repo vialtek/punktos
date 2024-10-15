@@ -36,7 +36,6 @@ attr                    .req x27
 
 .section .text.boot
 FUNCTION(_start)
-#if WITH_KERNEL_VM
     /* enable caches so atomics and spinlocks work */
     mrs     tmp, sctlr_el1
     orr     tmp, tmp, #(1<<12) /* Enable icache */
@@ -306,7 +305,6 @@ FUNCTION(_start)
 #if WITH_SMP
     cbnz    cpuid, .Lsecondary_boot
 #endif
-#endif /* WITH_KERNEL_VM */
 
     ldr tmp, =__stack_end
     mov sp, tmp
@@ -367,9 +365,7 @@ DATA(__stack)
     .skip ARCH_DEFAULT_STACK_SIZE * SMP_MAX_CPUS
 DATA(__stack_end)
 
-#if WITH_KERNEL_VM
 .section ".bss.prebss.translation_table"
 .align 3 + MMU_PAGE_TABLE_ENTRIES_IDENT_SHIFT
 DATA(tt_trampoline)
     .skip 8 * MMU_PAGE_TABLE_ENTRIES_IDENT
-#endif
