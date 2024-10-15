@@ -462,108 +462,109 @@ static void dump_arena(const pmm_arena_t* arena, bool dump_pages) {
     }
 }
 
-static int cmd_pmm(int argc, const cmd_args* argv) {
-    if (argc < 2) {
-    notenoughargs:
-        printf("not enough arguments\n");
-    usage:
-        printf("usage:\n");
-        printf("%s arenas\n", argv[0].str);
-        printf("%s alloc <count>\n", argv[0].str);
-        printf("%s alloc_range <address> <count>\n", argv[0].str);
-        printf("%s alloc_kpages <count>\n", argv[0].str);
-        printf("%s alloc_contig <count> <alignment>\n", argv[0].str);
-        printf("%s dump_alloced\n", argv[0].str);
-        printf("%s free_alloced\n", argv[0].str);
-        return ERR_GENERIC;
-    }
+// TODO: fix commands
+// static int cmd_pmm(int argc, const cmd_args* argv) {
+//     if (argc < 2) {
+//     notenoughargs:
+//         printf("not enough arguments\n");
+//     usage:
+//         printf("usage:\n");
+//         printf("%s arenas\n", argv[0].str);
+//         printf("%s alloc <count>\n", argv[0].str);
+//         printf("%s alloc_range <address> <count>\n", argv[0].str);
+//         printf("%s alloc_kpages <count>\n", argv[0].str);
+//         printf("%s alloc_contig <count> <alignment>\n", argv[0].str);
+//         printf("%s dump_alloced\n", argv[0].str);
+//         printf("%s free_alloced\n", argv[0].str);
+//         return ERR_GENERIC;
+//     }
 
-    static struct list_node allocated = LIST_INITIAL_VALUE(allocated);
+//     static struct list_node allocated = LIST_INITIAL_VALUE(allocated);
 
-    if (!strcmp(argv[1].str, "arenas")) {
-        pmm_arena_t* a;
-        list_for_every_entry (&arena_list, a, pmm_arena_t, node) { dump_arena(a, false); }
-    } else if (!strcmp(argv[1].str, "alloc")) {
-        if (argc < 3)
-            goto notenoughargs;
+//     if (!strcmp(argv[1].str, "arenas")) {
+//         pmm_arena_t* a;
+//         list_for_every_entry (&arena_list, a, pmm_arena_t, node) { dump_arena(a, false); }
+//     } else if (!strcmp(argv[1].str, "alloc")) {
+//         if (argc < 3)
+//             goto notenoughargs;
 
-        struct list_node list;
-        list_initialize(&list);
+//         struct list_node list;
+//         list_initialize(&list);
 
-        size_t count = pmm_alloc_pages((uint)argv[2].u, 0, &list);
-        printf("alloc returns %zu\n", count);
+//         size_t count = pmm_alloc_pages((uint)argv[2].u, 0, &list);
+//         printf("alloc returns %zu\n", count);
 
-        vm_page_t* p;
-        list_for_every_entry (&list, p, vm_page_t, node) {
-            printf("\tpage %p, address 0x%lx\n", p, vm_page_to_paddr(p));
-        }
+//         vm_page_t* p;
+//         list_for_every_entry (&list, p, vm_page_t, node) {
+//             printf("\tpage %p, address 0x%lx\n", p, vm_page_to_paddr(p));
+//         }
 
-        /* add the pages to the local allocated list */
-        struct list_node* node;
-        while ((node = list_remove_head(&list))) {
-            list_add_tail(&allocated, node);
-        }
-    } else if (!strcmp(argv[1].str, "dump_alloced")) {
-        vm_page_t* page;
+//         /* add the pages to the local allocated list */
+//         struct list_node* node;
+//         while ((node = list_remove_head(&list))) {
+//             list_add_tail(&allocated, node);
+//         }
+//     } else if (!strcmp(argv[1].str, "dump_alloced")) {
+//         vm_page_t* page;
 
-        list_for_every_entry (&allocated, page, vm_page_t, node) { dump_page(page); }
-    } else if (!strcmp(argv[1].str, "alloc_range")) {
-        if (argc < 4)
-            goto notenoughargs;
+//         list_for_every_entry (&allocated, page, vm_page_t, node) { dump_page(page); }
+//     } else if (!strcmp(argv[1].str, "alloc_range")) {
+//         if (argc < 4)
+//             goto notenoughargs;
 
-        struct list_node list;
-        list_initialize(&list);
+//         struct list_node list;
+//         list_initialize(&list);
 
-        size_t count = pmm_alloc_range(argv[2].u, (uint)argv[3].u, &list);
-        printf("alloc returns %zu\n", count);
+//         size_t count = pmm_alloc_range(argv[2].u, (uint)argv[3].u, &list);
+//         printf("alloc returns %zu\n", count);
 
-        vm_page_t* p;
-        list_for_every_entry (&list, p, vm_page_t, node) {
-            printf("\tpage %p, address 0x%lx\n", p, vm_page_to_paddr(p));
-        }
+//         vm_page_t* p;
+//         list_for_every_entry (&list, p, vm_page_t, node) {
+//             printf("\tpage %p, address 0x%lx\n", p, vm_page_to_paddr(p));
+//         }
 
-        /* add the pages to the local allocated list */
-        struct list_node* node;
-        while ((node = list_remove_head(&list))) {
-            list_add_tail(&allocated, node);
-        }
-    } else if (!strcmp(argv[1].str, "alloc_kpages")) {
-        if (argc < 3)
-            goto notenoughargs;
+//         /* add the pages to the local allocated list */
+//         struct list_node* node;
+//         while ((node = list_remove_head(&list))) {
+//             list_add_tail(&allocated, node);
+//         }
+//     } else if (!strcmp(argv[1].str, "alloc_kpages")) {
+//         if (argc < 3)
+//             goto notenoughargs;
 
-        paddr_t pa;
-        void* ptr = pmm_alloc_kpages((uint)argv[2].u, NULL, &pa);
-        printf("pmm_alloc_kpages returns %p pa 0x%lx\n", ptr, pa);
-    } else if (!strcmp(argv[1].str, "alloc_contig")) {
-        if (argc < 4)
-            goto notenoughargs;
+//         paddr_t pa;
+//         void* ptr = pmm_alloc_kpages((uint)argv[2].u, NULL, &pa);
+//         printf("pmm_alloc_kpages returns %p pa 0x%lx\n", ptr, pa);
+//     } else if (!strcmp(argv[1].str, "alloc_contig")) {
+//         if (argc < 4)
+//             goto notenoughargs;
 
-        struct list_node list;
-        list_initialize(&list);
+//         struct list_node list;
+//         list_initialize(&list);
 
-        paddr_t pa;
-        size_t ret = pmm_alloc_contiguous((uint)argv[2].u, 0, (uint8_t)argv[3].u, &pa, &list);
-        printf("pmm_alloc_contiguous returns %zu, address 0x%lx\n", ret, pa);
-        printf("address %% align = 0x%lx\n", pa % argv[3].u);
+//         paddr_t pa;
+//         size_t ret = pmm_alloc_contiguous((uint)argv[2].u, 0, (uint8_t)argv[3].u, &pa, &list);
+//         printf("pmm_alloc_contiguous returns %zu, address 0x%lx\n", ret, pa);
+//         printf("address %% align = 0x%lx\n", pa % argv[3].u);
 
-        /* add the pages to the local allocated list */
-        struct list_node* node;
-        while ((node = list_remove_head(&list))) {
-            list_add_tail(&allocated, node);
-        }
-    } else if (!strcmp(argv[1].str, "free_alloced")) {
-        size_t err = pmm_free(&allocated);
-        printf("pmm_free returns %zu\n", err);
-    } else {
-        printf("unknown command\n");
-        goto usage;
-    }
+//         /* add the pages to the local allocated list */
+//         struct list_node* node;
+//         while ((node = list_remove_head(&list))) {
+//             list_add_tail(&allocated, node);
+//         }
+//     } else if (!strcmp(argv[1].str, "free_alloced")) {
+//         size_t err = pmm_free(&allocated);
+//         printf("pmm_free returns %zu\n", err);
+//     } else {
+//         printf("unknown command\n");
+//         goto usage;
+//     }
 
-    return NO_ERROR;
-}
+//     return NO_ERROR;
+// }
 
-STATIC_COMMAND_START
-#if LK_DEBUGLEVEL > 0
-STATIC_COMMAND("pmm", "physical memory manager", &cmd_pmm)
-#endif
-STATIC_COMMAND_END(pmm);
+// STATIC_COMMAND_START
+// #if LK_DEBUGLEVEL > 0
+// STATIC_COMMAND("pmm", "physical memory manager", &cmd_pmm)
+// #endif
+// STATIC_COMMAND_END(pmm);

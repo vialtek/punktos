@@ -186,108 +186,110 @@ arch_aspace_t* vmm_get_arch_aspace(vmm_aspace_t* aspace) {
     return &real_aspace->arch_aspace();
 }
 
-static int cmd_vmm(int argc, const cmd_args* argv) {
-    if (argc < 2) {
-    notenoughargs:
-        printf("not enough arguments\n");
-    usage:
-        printf("usage:\n");
-        printf("%s aspaces\n", argv[0].str);
-        printf("%s alloc <size> <align_pow2>\n", argv[0].str);
-        printf("%s alloc_physical <paddr> <size> <align_pow2>\n", argv[0].str);
-        printf("%s alloc_contig <size> <align_pow2>\n", argv[0].str);
-        printf("%s free_region <address>\n", argv[0].str);
-        printf("%s create_aspace\n", argv[0].str);
-        printf("%s create_test_aspace\n", argv[0].str);
-        printf("%s free_aspace <address>\n", argv[0].str);
-        printf("%s set_test_aspace <address>\n", argv[0].str);
-        return ERR_GENERIC;
-    }
 
-    static vmm_aspace_t* test_aspace;
-    if (!test_aspace)
-        test_aspace = vmm_get_kernel_aspace();
+// TODO: fix commands
+// static int cmd_vmm(int argc, const cmd_args* argv) {
+//     if (argc < 2) {
+//     notenoughargs:
+//         printf("not enough arguments\n");
+//     usage:
+//         printf("usage:\n");
+//         printf("%s aspaces\n", argv[0].str);
+//         printf("%s alloc <size> <align_pow2>\n", argv[0].str);
+//         printf("%s alloc_physical <paddr> <size> <align_pow2>\n", argv[0].str);
+//         printf("%s alloc_contig <size> <align_pow2>\n", argv[0].str);
+//         printf("%s free_region <address>\n", argv[0].str);
+//         printf("%s create_aspace\n", argv[0].str);
+//         printf("%s create_test_aspace\n", argv[0].str);
+//         printf("%s free_aspace <address>\n", argv[0].str);
+//         printf("%s set_test_aspace <address>\n", argv[0].str);
+//         return ERR_GENERIC;
+//     }
 
-    if (!strcmp(argv[1].str, "aspaces")) {
-        DumpAllAspaces();
-    } else if (!strcmp(argv[1].str, "alloc")) {
-        if (argc < 3)
-            goto notenoughargs;
+//     static vmm_aspace_t* test_aspace;
+//     if (!test_aspace)
+//         test_aspace = vmm_get_kernel_aspace();
 
-        void* ptr = (void*)0x99;
-        uint8_t align = (argc >= 4) ? (uint8_t)argv[3].u : 0u;
-        status_t err = vmm_alloc(test_aspace, "alloc test", argv[2].u, &ptr, align, 0, 0);
-        printf("vmm_alloc returns %d, ptr %p\n", err, ptr);
-    } else if (!strcmp(argv[1].str, "alloc_physical")) {
-        if (argc < 4)
-            goto notenoughargs;
+//     if (!strcmp(argv[1].str, "aspaces")) {
+//         DumpAllAspaces();
+//     } else if (!strcmp(argv[1].str, "alloc")) {
+//         if (argc < 3)
+//             goto notenoughargs;
 
-        void* ptr = (void*)0x99;
-        uint8_t align = (argc >= 5) ? (uint8_t)argv[4].u : 0u;
-        status_t err = vmm_alloc_physical(test_aspace, "physical test", argv[3].u, &ptr, align,
-                                          argv[2].u, 0, ARCH_MMU_FLAG_UNCACHED_DEVICE);
-        printf("vmm_alloc_physical returns %d, ptr %p\n", err, ptr);
-    } else if (!strcmp(argv[1].str, "alloc_contig")) {
-        if (argc < 3)
-            goto notenoughargs;
+//         void* ptr = (void*)0x99;
+//         uint8_t align = (argc >= 4) ? (uint8_t)argv[3].u : 0u;
+//         status_t err = vmm_alloc(test_aspace, "alloc test", argv[2].u, &ptr, align, 0, 0);
+//         printf("vmm_alloc returns %d, ptr %p\n", err, ptr);
+//     } else if (!strcmp(argv[1].str, "alloc_physical")) {
+//         if (argc < 4)
+//             goto notenoughargs;
 
-        void* ptr = (void*)0x99;
-        uint8_t align = (argc >= 4) ? (uint8_t)argv[3].u : 0u;
-        status_t err =
-            vmm_alloc_contiguous(test_aspace, "contig test", argv[2].u, &ptr, align, 0, 0);
-        printf("vmm_alloc_contig returns %d, ptr %p\n", err, ptr);
-    } else if (!strcmp(argv[1].str, "free_region")) {
-        if (argc < 2)
-            goto notenoughargs;
+//         void* ptr = (void*)0x99;
+//         uint8_t align = (argc >= 5) ? (uint8_t)argv[4].u : 0u;
+//         status_t err = vmm_alloc_physical(test_aspace, "physical test", argv[3].u, &ptr, align,
+//                                           argv[2].u, 0, ARCH_MMU_FLAG_UNCACHED_DEVICE);
+//         printf("vmm_alloc_physical returns %d, ptr %p\n", err, ptr);
+//     } else if (!strcmp(argv[1].str, "alloc_contig")) {
+//         if (argc < 3)
+//             goto notenoughargs;
 
-        status_t err = vmm_free_region(test_aspace, (vaddr_t)argv[2].u);
-        printf("vmm_free_region returns %d\n", err);
-    } else if (!strcmp(argv[1].str, "create_aspace")) {
-        vmm_aspace_t* aspace;
-        status_t err = vmm_create_aspace(&aspace, "test", 0);
-        printf("vmm_create_aspace returns %d, aspace %p\n", err, aspace);
-    } else if (!strcmp(argv[1].str, "create_test_aspace")) {
-        vmm_aspace_t* aspace;
-        status_t err = vmm_create_aspace(&aspace, "test", 0);
-        printf("vmm_create_aspace returns %d, aspace %p\n", err, aspace);
-        if (err < 0)
-            return err;
+//         void* ptr = (void*)0x99;
+//         uint8_t align = (argc >= 4) ? (uint8_t)argv[3].u : 0u;
+//         status_t err =
+//             vmm_alloc_contiguous(test_aspace, "contig test", argv[2].u, &ptr, align, 0, 0);
+//         printf("vmm_alloc_contig returns %d, ptr %p\n", err, ptr);
+//     } else if (!strcmp(argv[1].str, "free_region")) {
+//         if (argc < 2)
+//             goto notenoughargs;
 
-        test_aspace = aspace;
-        get_current_thread()->aspace = aspace;
-        thread_sleep(1); // XXX hack to force it to reschedule and thus load the aspace
-    } else if (!strcmp(argv[1].str, "free_aspace")) {
-        if (argc < 2)
-            goto notenoughargs;
+//         status_t err = vmm_free_region(test_aspace, (vaddr_t)argv[2].u);
+//         printf("vmm_free_region returns %d\n", err);
+//     } else if (!strcmp(argv[1].str, "create_aspace")) {
+//         vmm_aspace_t* aspace;
+//         status_t err = vmm_create_aspace(&aspace, "test", 0);
+//         printf("vmm_create_aspace returns %d, aspace %p\n", err, aspace);
+//     } else if (!strcmp(argv[1].str, "create_test_aspace")) {
+//         vmm_aspace_t* aspace;
+//         status_t err = vmm_create_aspace(&aspace, "test", 0);
+//         printf("vmm_create_aspace returns %d, aspace %p\n", err, aspace);
+//         if (err < 0)
+//             return err;
 
-        vmm_aspace_t* aspace = (vmm_aspace_t*)(void*)argv[2].u;
-        if (test_aspace == aspace)
-            test_aspace = nullptr;
+//         test_aspace = aspace;
+//         get_current_thread()->aspace = aspace;
+//         thread_sleep(1); // XXX hack to force it to reschedule and thus load the aspace
+//     } else if (!strcmp(argv[1].str, "free_aspace")) {
+//         if (argc < 2)
+//             goto notenoughargs;
 
-        if (get_current_thread()->aspace == aspace) {
-            get_current_thread()->aspace = nullptr;
-            thread_sleep(1); // hack
-        }
+//         vmm_aspace_t* aspace = (vmm_aspace_t*)(void*)argv[2].u;
+//         if (test_aspace == aspace)
+//             test_aspace = nullptr;
 
-        status_t err = vmm_free_aspace(aspace);
-        printf("vmm_free_aspace returns %d\n", err);
-    } else if (!strcmp(argv[1].str, "set_test_aspace")) {
-        if (argc < 2)
-            goto notenoughargs;
+//         if (get_current_thread()->aspace == aspace) {
+//             get_current_thread()->aspace = nullptr;
+//             thread_sleep(1); // hack
+//         }
 
-        test_aspace = (vmm_aspace_t*)(void*)argv[2].u;
-        get_current_thread()->aspace = test_aspace;
-        thread_sleep(1); // XXX hack to force it to reschedule and thus load the aspace
-    } else {
-        printf("unknown command\n");
-        goto usage;
-    }
+//         status_t err = vmm_free_aspace(aspace);
+//         printf("vmm_free_aspace returns %d\n", err);
+//     } else if (!strcmp(argv[1].str, "set_test_aspace")) {
+//         if (argc < 2)
+//             goto notenoughargs;
 
-    return NO_ERROR;
-}
+//         test_aspace = (vmm_aspace_t*)(void*)argv[2].u;
+//         get_current_thread()->aspace = test_aspace;
+//         thread_sleep(1); // XXX hack to force it to reschedule and thus load the aspace
+//     } else {
+//         printf("unknown command\n");
+//         goto usage;
+//     }
 
-STATIC_COMMAND_START
-#if LK_DEBUGLEVEL > 0
-STATIC_COMMAND("vmm", "virtual memory manager", &cmd_vmm)
-#endif
-STATIC_COMMAND_END(vmm);
+//     return NO_ERROR;
+// }
+
+// STATIC_COMMAND_START
+// #if LK_DEBUGLEVEL > 0
+// STATIC_COMMAND("vmm", "virtual memory manager", &cmd_vmm)
+// #endif
+// STATIC_COMMAND_END(vmm);
