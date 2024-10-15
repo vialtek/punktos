@@ -10,7 +10,7 @@
 #include <lk/err.h>
 #include <kernel/auto_lock.h>
 #include <kernel/mutex.h>
-#include <kernel/vm.h>
+#include <vm/vm.h>
 #include <lib/console.h>
 #include <lk/list.h>
 #include <lk/pow2.h>

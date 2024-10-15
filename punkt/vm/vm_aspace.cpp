@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT
 
-#include <kernel/vm/vm_aspace.h>
+#include <vm/vm_aspace.h>
 
 #include "vm_priv.h"
 #include <assert.h>

@@ -13,7 +13,7 @@
 #include <vm/vm_aspace.h>
 #include <vm/vm_object.h>
 #include <string.h>
-#include <trace.h>
+#include <lk/trace.h>
 #include <lib/sbl/type_support.h>
 
 #define LOCAL_TRACE MAX(VM_GLOBAL_TRACE, 0)

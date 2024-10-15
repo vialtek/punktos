@@ -15,7 +15,7 @@
 #include <vm/vm_region.h>
 #include <lib/console.h>
 #include <string.h>
-#include <trace.h>
+#include <lk/trace.h>
 
 #define LOCAL_TRACE MAX(VM_GLOBAL_TRACE, 0)
 #define TRACE_PAGE_FAULT 0
