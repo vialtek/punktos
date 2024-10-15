@@ -38,17 +38,6 @@ pt_entry_t linear_map_pdp[(64ULL * GB) / (2 * MB)] __ALIGNED(PAGE_SIZE);
 
 /* which of the above variables is the top level page table */
 #define KERNEL_PT pml4
-#else
-/* 32bit code */
-pt_entry_t pd[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
-
-#if PAE_MODE_ENABLED
-/* PAE has one more level, with the pdp at the top */
-pt_entry_t pdp[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
-#define KERNEL_PT pdp
-#else
-#define KERNEL_PT pd
-#endif
 
 /* kernel base top level page table in physical space */
 static const paddr_t kernel_pt_phys = (vaddr_t)KERNEL_PT - KERNEL_BASE;
