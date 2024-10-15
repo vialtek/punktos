@@ -19,10 +19,6 @@
 #include <arch/ops.h>
 #include <platform/gic.h>
 #include <lk/trace.h>
-#if WITH_LIB_SM
-#include <lib/sm.h>
-#include <lib/sm/sm_err.h>
-#endif
 
 #define LOCAL_TRACE 0
 
@@ -40,34 +36,16 @@
 static status_t arm_gic_set_secure_locked(u_int irq, bool secure);
 
 static spin_lock_t gicd_lock;
-#if WITH_LIB_SM
-#define GICD_LOCK_FLAGS SPIN_LOCK_FLAG_IRQ_FIQ
-#else
+
 #define GICD_LOCK_FLAGS SPIN_LOCK_FLAG_INTERRUPTS
-#endif
 #define GIC_MAX_PER_CPU_INT 32
 
-#if WITH_LIB_SM
-static bool arm_gic_non_secure_interrupts_frozen;
-
-static bool arm_gic_interrupt_change_allowed(uint irq) {
-    if (!arm_gic_non_secure_interrupts_frozen)
-        return true;
-
-    TRACEF("change to interrupt %u ignored after booting ns\n", irq);
-    return false;
-}
-
-static void suspend_resume_fiq(bool resume_gicc, bool resume_gicd);
-#else
 static bool arm_gic_interrupt_change_allowed(uint irq) {
     return true;
 }
 
 static void suspend_resume_fiq(bool resume_gicc, bool resume_gicd) {
 }
-#endif
-
 
 struct int_handler_struct {
     int_handler handler;
@@ -156,9 +134,6 @@ void register_int_handler_msi(unsigned int vector, int_handler handler, void *ar
          (GIC_REG_COUNT(bit_per_reg) - 1)] = (init_val) \
     }
 
-#if WITH_LIB_SM
-static DEFINE_GIC_SHADOW_REG(gicd_igroupr, 32, ~0U, 0);
-#endif
 static DEFINE_GIC_SHADOW_REG(gicd_itargetsr, 4, 0x01010101, 32);
 
 // accessor routines for GIC registers that go through the mmio interface
@@ -182,12 +157,7 @@ static void gic_set_enable(uint vector, bool enable) {
 }
 
 static void arm_gic_init_percpu(uint level) {
-#if WITH_LIB_SM
-    gicreg_write32(0, GICC_CTLR, 0xb); // enable GIC0 and select fiq mode for secure
-    gicreg_write32(0, GICD_IGROUPR(0), ~0U); /* GICD_IGROUPR0 is banked */
-#else
     gicreg_write32(0, GICC_CTLR, 1); // enable GIC0
-#endif
     gicreg_write32(0, GICC_PMR, 0xFF); // unmask interrupts at all priority levels
 }
 
@@ -275,36 +245,10 @@ void arm_gic_init(void) {
 
 
     gicreg_write32(0, GICD_CTLR, 1); // enable GIC0
-#if WITH_LIB_SM
-    gicreg_write32(0, GICD_CTLR, 3); // enable GIC0 ns interrupts
-    /*
-     * Iterate through all IRQs and set them to non-secure
-     * mode. This will allow the non-secure side to handle
-     * all the interrupts we don't explicitly claim.
-     */
-    for (i = 32; i < MAX_INT; i += 32) {
-        u_int reg = i / 32;
-        gicreg_write32(0, GICD_IGROUPR(reg), gicd_igroupr[reg]);
-    }
-#endif
     arm_gic_init_percpu(0);
 }
 
 static status_t arm_gic_set_secure_locked(u_int irq, bool secure) {
-#if WITH_LIB_SM
-    int reg = irq / 32;
-    uint32_t mask = 1ULL << (irq % 32);
-
-    if (irq >= MAX_INT)
-        return ERR_INVALID_ARGS;
-
-    if (secure)
-        gicreg_write32(0, GICD_IGROUPR(reg), (gicd_igroupr[reg] &= ~mask));
-    else
-        gicreg_write32(0, GICD_IGROUPR(reg), (gicd_igroupr[reg] |= mask));
-    LTRACEF("irq %d, secure %d, GICD_IGROUP%d = %x\n",
-            irq, secure, reg, gicreg_read32(0, GICD_IGROUPR(reg)));
-#endif
     return NO_ERROR;
 }
 
@@ -423,202 +367,11 @@ enum handler_return __platform_irq(struct iframe *frame) {
 
 enum handler_return platform_irq(struct iframe *frame);
 enum handler_return platform_irq(struct iframe *frame) {
-#if WITH_LIB_SM
-    uint32_t ahppir = gicreg_read32(0, GICC_AHPPIR);
-    uint32_t pending_irq = ahppir & 0x3ff;
-    struct int_handler_struct *h;
-    uint cpu = arch_curr_cpu_num();
-
-    LTRACEF("ahppir %d\n", ahppir);
-    if (pending_irq < MAX_INT && get_int_handler(pending_irq, cpu)->handler) {
-        enum handler_return ret = 0;
-        uint32_t irq;
-        uint8_t old_priority;
-        spin_lock_saved_state_t state;
-
-        spin_lock_save(&gicd_lock, &state, GICD_LOCK_FLAGS);
-
-        /* Temporarily raise the priority of the interrupt we want to
-         * handle so another interrupt does not take its place before
-         * we can acknowledge it.
-         */
-        old_priority = arm_gic_get_priority(pending_irq);
-        arm_gic_set_priority_locked(pending_irq, 0);
-        DSB;
-        irq = gicreg_read32(0, GICC_AIAR) & 0x3ff;
-        arm_gic_set_priority_locked(pending_irq, old_priority);
-
-        spin_unlock_restore(&gicd_lock, state, GICD_LOCK_FLAGS);
-
-        LTRACEF("irq %d\n", irq);
-        if (irq < MAX_INT && (h = get_int_handler(pending_irq, cpu))->handler)
-            ret = h->handler(h->arg);
-        else
-            TRACEF("unexpected irq %d != %d may get lost\n", irq, pending_irq);
-        gicreg_write32(0, GICC_AEOIR, irq);
-        return ret;
-    }
-    return sm_handle_irq();
-#else
     return __platform_irq(frame);
-#endif
 }
 
+// TODO: check whether we need this. Remove if not
 void platform_fiq(struct iframe *frame);
 void platform_fiq(struct iframe *frame) {
-#if WITH_LIB_SM
-    sm_handle_fiq();
-#else
     PANIC_UNIMPLEMENTED;
-#endif
 }
-
-#if WITH_LIB_SM
-static status_t arm_gic_get_next_irq_locked(u_int min_irq, bool per_cpu) {
-    u_int irq;
-    u_int max_irq = per_cpu ? GIC_MAX_PER_CPU_INT : MAX_INT;
-    uint cpu = arch_curr_cpu_num();
-
-    if (!per_cpu && min_irq < GIC_MAX_PER_CPU_INT)
-        min_irq = GIC_MAX_PER_CPU_INT;
-
-    for (irq = min_irq; irq < max_irq; irq++)
-        if (get_int_handler(irq, cpu)->handler)
-            return irq;
-
-    return SM_ERR_END_OF_INPUT;
-}
-
-long smc_intc_get_next_irq(smc32_args_t *args) {
-    status_t ret;
-    spin_lock_saved_state_t state;
-
-    spin_lock_save(&gicd_lock, &state, GICD_LOCK_FLAGS);
-
-    arm_gic_non_secure_interrupts_frozen = true;
-    ret = arm_gic_get_next_irq_locked(args->params[0], args->params[1]);
-    LTRACEF("min_irq %d, per_cpu %d, ret %d\n",
-            args->params[0], args->params[1], ret);
-
-    spin_unlock_restore(&gicd_lock, state, GICD_LOCK_FLAGS);
-
-    return ret;
-}
-
-static u_long enabled_fiq_mask[BITMAP_NUM_WORDS(MAX_INT)];
-
-static void bitmap_update_locked(u_long *bitmap, u_int bit, bool set) {
-    u_long mask = 1UL << BITMAP_BIT_IN_WORD(bit);
-
-    bitmap += BITMAP_WORD(bit);
-    if (set)
-        *bitmap |= mask;
-    else
-        *bitmap &= ~mask;
-}
-
-long smc_intc_request_fiq(smc32_args_t *args) {
-    u_int fiq = args->params[0];
-    bool enable = args->params[1];
-    spin_lock_saved_state_t state;
-
-    dprintf(SPEW, "%s: fiq %d, enable %d\n", __func__, fiq, enable);
-    spin_lock_save(&gicd_lock, &state, GICD_LOCK_FLAGS);
-
-    arm_gic_set_secure_locked(fiq, true);
-    arm_gic_set_target_locked(fiq, ~0, ~0);
-    arm_gic_set_priority_locked(fiq, 0);
-
-    gic_set_enable(fiq, enable);
-    bitmap_update_locked(enabled_fiq_mask, fiq, enable);
-
-    dprintf(SPEW, "%s: fiq %d, enable %d done\n", __func__, fiq, enable);
-
-    spin_unlock_restore(&gicd_lock, state, GICD_LOCK_FLAGS);
-
-    return NO_ERROR;
-}
-
-static u_int current_fiq[8] = { 0x3ff, 0x3ff, 0x3ff, 0x3ff, 0x3ff, 0x3ff, 0x3ff, 0x3ff };
-
-static bool update_fiq_targets(u_int cpu, bool enable, u_int triggered_fiq, bool resume_gicd) {
-    u_int i, j;
-    u_long mask;
-    u_int fiq;
-    bool smp = arm_gic_max_cpu() > 0;
-    bool ret = false;
-
-    spin_lock(&gicd_lock); /* IRQs and FIQs are already masked */
-    for (i = 0; i < BITMAP_NUM_WORDS(MAX_INT); i++) {
-        mask = enabled_fiq_mask[i];
-        while (mask) {
-            j = _ffz(~mask);
-            mask &= ~(1UL << j);
-            fiq = i * BITMAP_BITS_PER_WORD + j;
-            if (fiq == triggered_fiq)
-                ret = true;
-            LTRACEF("cpu %d, irq %i, enable %d\n", cpu, fiq, enable);
-            if (smp)
-                arm_gic_set_target_locked(fiq, 1U << cpu, enable ? ~0 : 0);
-            if (!smp || resume_gicd)
-                gic_set_enable(fiq, enable);
-        }
-    }
-    spin_unlock(&gicd_lock);
-    return ret;
-}
-
-static void suspend_resume_fiq(bool resume_gicc, bool resume_gicd) {
-    u_int cpu = arch_curr_cpu_num();
-
-    ASSERT(cpu < 8);
-
-    update_fiq_targets(cpu, resume_gicc, ~0, resume_gicd);
-}
-
-status_t sm_intc_fiq_enter(void) {
-    u_int cpu = arch_curr_cpu_num();
-    u_int irq = gicreg_read32(0, GICC_IAR) & 0x3ff;
-    bool fiq_enabled;
-
-    ASSERT(cpu < 8);
-
-    LTRACEF("cpu %d, irq %i\n", cpu, irq);
-
-    if (irq >= 1020) {
-        LTRACEF("spurious fiq: cpu %d, old %d, new %d\n", cpu, current_fiq[cpu], irq);
-        return ERR_NO_MSG;
-    }
-
-    fiq_enabled = update_fiq_targets(cpu, false, irq, false);
-    gicreg_write32(0, GICC_EOIR, irq);
-
-    if (current_fiq[cpu] != 0x3ff) {
-        dprintf(INFO, "more than one fiq active: cpu %d, old %d, new %d\n", cpu, current_fiq[cpu], irq);
-        return ERR_ALREADY_STARTED;
-    }
-
-    if (!fiq_enabled) {
-        dprintf(INFO, "got disabled fiq: cpu %d, new %d\n", cpu, irq);
-        return ERR_NOT_READY;
-    }
-
-    current_fiq[cpu] = irq;
-
-    return 0;
-}
-
-void sm_intc_fiq_exit(void) {
-    u_int cpu = arch_curr_cpu_num();
-
-    ASSERT(cpu < 8);
-
-    LTRACEF("cpu %d, irq %i\n", cpu, current_fiq[cpu]);
-    if (current_fiq[cpu] == 0x3ff) {
-        dprintf(INFO, "%s: no fiq active, cpu %d\n", __func__, cpu);
-        return;
-    }
-    update_fiq_targets(cpu, true, current_fiq[cpu], false);
-    current_fiq[cpu] = 0x3ff;
-}
-#endif
