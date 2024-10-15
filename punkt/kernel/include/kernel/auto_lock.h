@@ -7,35 +7,29 @@
 #pragma once
 
 #include <kernel/mutex.h>
+#include <lk/cpp.h>
 
 class AutoLock {
 public:
-    AutoLock(mutex_t* mutex)
-        :   mutex_(mutex) {
-        mutex_acquire(mutex_);
-    }
+    explicit AutoLock(mutex_t *mutex) : mutex_(mutex) { mutex_acquire(mutex_); }
+    AutoLock(mutex_t &mutex) : AutoLock(&mutex) {}
 
-    AutoLock(mutex_t& mutex)
-        :   AutoLock(&mutex) {}
+    explicit AutoLock(Mutex *mutex) : AutoLock(&mutex->lock_) {}
+    AutoLock(Mutex &mutex) : AutoLock(&mutex) {}
 
-    ~AutoLock() {
-        release();
-    }
+    ~AutoLock() { release(); }
 
     // early release the mutex before the object goes out of scope
     void release() {
-        if (mutex_) {
+        if (likely(mutex_)) {
             mutex_release(mutex_);
             mutex_ = nullptr;
         }
     }
 
     // suppress default constructors
-    AutoLock(const AutoLock& am) = delete;
-    AutoLock& operator=(const AutoLock& am) = delete;
-    AutoLock(AutoLock&& c) = delete;
-    AutoLock& operator=(AutoLock&& c) = delete;
+    DISALLOW_COPY_ASSIGN_AND_MOVE(AutoLock);
 
 private:
-    mutex_t* mutex_;
+    mutex_t *mutex_ = nullptr;
 };
