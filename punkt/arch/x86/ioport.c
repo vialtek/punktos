@@ -15,6 +15,7 @@
 #include <arch/x86/mp.h>
 #include <kernel/mp.h>
 #include <kernel/thread.h>
+#include <vm/vm.h>
 
 /* Task used for updating IO permissions on each CPU */
 struct ioport_update_context {
