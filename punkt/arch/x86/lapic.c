@@ -320,78 +320,77 @@ enum handler_return apic_error_interrupt_handler(void) {
     panic("APIC error detected: %u\n", *ERROR_STATUS_ADDR);
 }
 
-// TODO: Fix command functionality
-// static int cmd_apic(int argc, const cmd_args *argv)
-// {
-//     if (argc < 2) {
-// notenoughargs:
-//         printf("not enough arguments\n");
-// usage:
-//         printf("usage:\n");
-//         printf("%s dump io\n", argv[0].str);
-//         printf("%s dump local\n", argv[0].str);
-//         printf("%s broadcast <vec>\n", argv[0].str);
-//         printf("%s self <vec>\n", argv[0].str);
-//         return ERR_GENERIC;
-//     }
+static int cmd_apic(int argc, const console_cmd_args *argv)
+{
+    if (argc < 2) {
+notenoughargs:
+        printf("not enough arguments\n");
+usage:
+        printf("usage:\n");
+        printf("%s dump io\n", argv[0].str);
+        printf("%s dump local\n", argv[0].str);
+        printf("%s broadcast <vec>\n", argv[0].str);
+        printf("%s self <vec>\n", argv[0].str);
+        return ERR_GENERIC;
+    }
 
-//     if (!strcmp(argv[1].str, "broadcast")) {
-//         if (argc < 3)
-//           goto notenoughargs;
-//         uint8_t vec = argv[2].u;
-//         apic_send_broadcast_ipi(vec, DELIVERY_MODE_FIXED);
-//         printf("irr: %x\n", *IRQ_REQUEST_ADDR(vec / 32));
-//         printf("isr: %x\n", *IN_SERVICE_ADDR(vec / 32));
-//         printf("icr: %x\n", *IRQ_CMD_LOW_ADDR);
-//     } else if (!strcmp(argv[1].str, "self")) {
-//         if (argc < 3)
-//           goto notenoughargs;
-//         uint8_t vec = argv[2].u;
-//         apic_send_self_ipi(vec, DELIVERY_MODE_FIXED);
-//         printf("irr: %x\n", *IRQ_REQUEST_ADDR(vec / 32));
-//         printf("isr: %x\n", *IN_SERVICE_ADDR(vec / 32));
-//         printf("icr: %x\n", *IRQ_CMD_LOW_ADDR);
-//     } else if (!strcmp(argv[1].str, "dump")) {
-//         if (argc < 3)
-//             goto notenoughargs;
-//         if (!strcmp(argv[2].str, "local")) {
-//             printf("Caution: this is only for one CPU\n");
-//             apic_local_debug();
-//         } else if (!strcmp(argv[2].str, "io")) {
-//             apic_io_debug();
-//         } else {
-//             printf("unknown subcommand\n");
-//             goto usage;
-//         }
-//     } else {
-//         printf("unknown command\n");
-//         goto usage;
-//     }
+    if (!strcmp(argv[1].str, "broadcast")) {
+        if (argc < 3)
+          goto notenoughargs;
+        uint8_t vec = argv[2].u;
+        apic_send_broadcast_ipi(vec, DELIVERY_MODE_FIXED);
+        printf("irr: %x\n", *IRQ_REQUEST_ADDR(vec / 32));
+        printf("isr: %x\n", *IN_SERVICE_ADDR(vec / 32));
+        printf("icr: %x\n", *IRQ_CMD_LOW_ADDR);
+    } else if (!strcmp(argv[1].str, "self")) {
+        if (argc < 3)
+          goto notenoughargs;
+        uint8_t vec = argv[2].u;
+        apic_send_self_ipi(vec, DELIVERY_MODE_FIXED);
+        printf("irr: %x\n", *IRQ_REQUEST_ADDR(vec / 32));
+        printf("isr: %x\n", *IN_SERVICE_ADDR(vec / 32));
+        printf("icr: %x\n", *IRQ_CMD_LOW_ADDR);
+    } else if (!strcmp(argv[1].str, "dump")) {
+        if (argc < 3)
+            goto notenoughargs;
+        if (!strcmp(argv[2].str, "local")) {
+            printf("Caution: this is only for one CPU\n");
+            apic_local_debug();
+        } else if (!strcmp(argv[2].str, "io")) {
+            apic_io_debug();
+        } else {
+            printf("unknown subcommand\n");
+            goto usage;
+        }
+    } else {
+        printf("unknown command\n");
+        goto usage;
+    }
 
-//     return NO_ERROR;
-// }
+    return NO_ERROR;
+}
 
-// void apic_local_debug(void)
-// {
-//     spin_lock_saved_state_t state;
-//     arch_interrupt_save(&state, 0);
+void apic_local_debug(void)
+{
+    spin_lock_saved_state_t state;
+    arch_interrupt_save(&state, 0);
 
-//     printf("apic %02x:\n", apic_local_id());
-//     printf("  version: %08x:\n", *LAPIC_VERSION_ADDR);
-//     printf("  logical_dst: %08x\n", *LOGICAL_DST_ADDR);
-//     printf("  spurious_irq: %08x\n", *SPURIOUS_IRQ_ADDR);
-//     printf("  tpr: %02x\n", (uint8_t)*TASK_PRIORITY_ADDR);
-//     printf("  ppr: %02x\n", (uint8_t)*PROCESSOR_PRIORITY_ADDR);
-//     for (int i = 0; i < 8; ++i)
-//         printf("  irr %d: %08x\n", i, *IRQ_REQUEST_ADDR(i));
-//     for (int i = 0; i < 8; ++i)
-//         printf("  isr %d: %08x\n", i, *IN_SERVICE_ADDR(i));
+    printf("apic %02x:\n", apic_local_id());
+    printf("  version: %08x:\n", *LAPIC_VERSION_ADDR);
+    printf("  logical_dst: %08x\n", *LOGICAL_DST_ADDR);
+    printf("  spurious_irq: %08x\n", *SPURIOUS_IRQ_ADDR);
+    printf("  tpr: %02x\n", (uint8_t)*TASK_PRIORITY_ADDR);
+    printf("  ppr: %02x\n", (uint8_t)*PROCESSOR_PRIORITY_ADDR);
+    for (int i = 0; i < 8; ++i)
+        printf("  irr %d: %08x\n", i, *IRQ_REQUEST_ADDR(i));
+    for (int i = 0; i < 8; ++i)
+        printf("  isr %d: %08x\n", i, *IN_SERVICE_ADDR(i));
 
-//     arch_interrupt_restore(state, 0);
-// }
+    arch_interrupt_restore(state, 0);
+}
 
-// STATIC_COMMAND_START
-// #if LK_DEBUGLEVEL > 0
-// STATIC_COMMAND("apic", "apic commands", &cmd_apic)
-// #endif
-// STATIC_COMMAND_END(apic);
+STATIC_COMMAND_START
+#if LK_DEBUGLEVEL > 0
+STATIC_COMMAND("apic", "apic commands", &cmd_apic)
+#endif
+STATIC_COMMAND_END(apic);
