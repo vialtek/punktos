@@ -112,12 +112,11 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, uint exception_flags
             LTRACEF("instruction abort: PC at 0x%llx, FAR 0x%llx, esr 0x%x, iss 0x%x\n",
                     iframe->elr, far, esr, iss);
 
-            // TODO: Make it work with vmm
-            // arch_enable_ints();
-            // status_t err = vmm_page_fault_handler(far, pf_flags);
-            // arch_disable_ints();
-            // if (err >= 0)
-            //     return;
+            arch_enable_ints();
+            status_t err = vmm_page_fault_handler(far, pf_flags);
+            arch_disable_ints();
+            if (err >= 0)
+                return;
 
 #if WITH_LIB_MAGENTA
             /* let magenta get a shot at it */
