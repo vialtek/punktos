@@ -104,6 +104,7 @@ status_t arch_mmu_query(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t *paddr, ui
     LTRACEF("aspace %p, vaddr 0x%lx\n", aspace, vaddr);
 
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
     DEBUG_ASSERT(aspace->tt_virt);
 
     DEBUG_ASSERT(is_valid_vaddr(aspace, vaddr));
@@ -506,6 +507,7 @@ int arch_mmu_map(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, uint count
     LTRACEF("vaddr 0x%lx paddr 0x%lx count %u flags 0x%x\n", vaddr, paddr, count, flags);
 
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
     DEBUG_ASSERT(aspace->tt_virt);
 
     DEBUG_ASSERT(is_valid_vaddr(aspace, vaddr));
@@ -543,6 +545,7 @@ int arch_mmu_unmap(arch_aspace_t *aspace, vaddr_t vaddr, uint count) {
     LTRACEF("vaddr 0x%lx count %u\n", vaddr, count);
 
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
     DEBUG_ASSERT(aspace->tt_virt);
 
     DEBUG_ASSERT(is_valid_vaddr(aspace, vaddr));
@@ -576,11 +579,13 @@ status_t arch_mmu_init_aspace(arch_aspace_t *aspace, vaddr_t base, size_t size, 
     LTRACEF("aspace %p, base 0x%lx, size 0x%zx, flags 0x%x\n", aspace, base, size, flags);
 
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic != ARCH_ASPACE_MAGIC);
 
     /* validate that the base + size is sane and doesn't wrap */
     DEBUG_ASSERT(size > PAGE_SIZE);
     DEBUG_ASSERT(base + size - 1 > base);
 
+    aspace->magic = ARCH_ASPACE_MAGIC;
     aspace->flags = flags;
     if (flags & ARCH_ASPACE_FLAG_KERNEL) {
         /* at the moment we can only deal with address spaces as globally defined */
@@ -619,6 +624,7 @@ status_t arch_mmu_destroy_aspace(arch_aspace_t *aspace) {
     LTRACEF("aspace %p\n", aspace);
 
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
     DEBUG_ASSERT((aspace->flags & ARCH_ASPACE_FLAG_KERNEL) == 0);
 
     // XXX make sure it's not mapped
@@ -626,6 +632,8 @@ status_t arch_mmu_destroy_aspace(arch_aspace_t *aspace) {
     vm_page_t *page = paddr_to_vm_page(aspace->tt_phys);
     DEBUG_ASSERT(page);
     pmm_free_page(page);
+
+    aspace->magic = 0;
 
     return NO_ERROR;
 }
@@ -637,6 +645,7 @@ void arch_mmu_context_switch(arch_aspace_t *aspace) {
     uint64_t tcr = arm64_mmu_tcr_flags;
     uint64_t ttbr;
     if (aspace) {
+        DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
         DEBUG_ASSERT((aspace->flags & ARCH_ASPACE_FLAG_KERNEL) == 0);
 
         tcr |= MMU_TCR_FLAGS_USER;

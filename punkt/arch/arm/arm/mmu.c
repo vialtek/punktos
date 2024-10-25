@@ -137,6 +137,7 @@ static void arm_mmu_map_section(arch_aspace_t *aspace, addr_t paddr, addr_t vadd
     LTRACEF("aspace %p tt %p pa 0x%lx va 0x%lx flags 0x%x\n", aspace, aspace->tt_virt, paddr, vaddr, flags);
 
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
     DEBUG_ASSERT(aspace->tt_virt);
     DEBUG_ASSERT(IS_SECTION_ALIGNED(paddr));
     DEBUG_ASSERT(IS_SECTION_ALIGNED(vaddr));
@@ -231,6 +232,7 @@ status_t arch_mmu_query(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t *paddr, ui
     LTRACEF("aspace %p, vaddr 0x%lx\n", aspace, vaddr);
 
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
     DEBUG_ASSERT(aspace->tt_virt);
 
     DEBUG_ASSERT(arch_mmu_is_valid_vaddr(aspace, vaddr));
@@ -668,6 +670,7 @@ status_t arch_mmu_init_aspace(arch_aspace_t *aspace, vaddr_t base, size_t size, 
     LTRACEF("aspace %p, base 0x%lx, size 0x%zx, flags 0x%x\n", aspace, base, size, flags);
 
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic != ARCH_ASPACE_MAGIC);
 
     /* validate that the base + size is sane and doesn't wrap */
     DEBUG_ASSERT(size > PAGE_SIZE);
@@ -675,6 +678,7 @@ status_t arch_mmu_init_aspace(arch_aspace_t *aspace, vaddr_t base, size_t size, 
 
     list_initialize(&aspace->pt_page_list);
 
+    aspace->magic = ARCH_ASPACE_MAGIC;
     if (flags & ARCH_ASPACE_FLAG_KERNEL) {
         aspace->base = base;
         aspace->size = size;
@@ -704,6 +708,7 @@ status_t arch_mmu_init_aspace(arch_aspace_t *aspace, vaddr_t base, size_t size, 
 
 status_t arch_mmu_destroy_aspace(arch_aspace_t *aspace) {
     LTRACEF("aspace %p\n", aspace);
+    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
 
     // XXX free all of the pages allocated in aspace->pt_page_list
     vm_page_t *p;
@@ -711,6 +716,8 @@ status_t arch_mmu_destroy_aspace(arch_aspace_t *aspace) {
         LTRACEF("freeing page %p\n", p);
         pmm_free_page(p);
     }
+
+    aspace->magic = 0;
 
     return NO_ERROR;
 }
