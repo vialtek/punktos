@@ -36,11 +36,9 @@ arm_reset:
     /* i/d cache disable, mmu disabled */
     bic     r12, #(1<<12)
     bic     r12, #(1<<2 | 1<<0)
-#if WITH_KERNEL_VM
     /* enable caches so atomics and spinlocks work */
     orr     r12, r12, #(1<<12)
     orr     r12, r12, #(1<<2)
-#endif // WITH_KERNEL_VM
     mcr     p15, 0, r12, c1, c0, 0
 
     /* calculate the physical offset from our eventual virtual location */
@@ -98,7 +96,6 @@ arm_reset:
 .Lrelocate_done:
 #endif // !WITH_NO_PHYS_RELOCATION
 
-#if ARM_WITH_MMU
 .Lsetup_mmu:
 
     /* set up the mmu according to mmu_initial_mappings */
@@ -204,7 +201,6 @@ arm_reset:
 
     /* set up the mmu */
     bl      .Lmmu_setup
-#endif // WITH_KERNEL_VM
 
     /* at this point we're running at our final location in virtual memory (if enabled) */
 .Lstack_setup:
@@ -260,7 +256,6 @@ arm_reset:
     bl      lk_main
     b       .
 
-#if WITH_KERNEL_VM
     /* per cpu mmu setup, shared between primary and secondary cpus
        args:
        r4 == translation table physical
@@ -319,7 +314,6 @@ arm_reset:
     /* assume lr was in physical memory, adjust it before returning */
     sub     lr, r11
     bx      lr
-#endif
 
 #if WITH_SMP
     /* secondary cpu entry point */
@@ -371,7 +365,6 @@ FUNCTION(arm_secondary_setup)
 
     mov     sp, r1
 
-#if WITH_KERNEL_VM
     /* load the physical base of the translation table and clear the table */
     ldr     r4, =arm_kernel_translation_table
     add     r4, r4, r11
@@ -390,7 +383,6 @@ FUNCTION(arm_secondary_setup)
 
     /* set up the mmu on this cpu and switch to virtual memory */
     bl      .Lmmu_setup
-#endif
 
     /* stay in supervisor and call into arm arch code to continue setup */
     mov     r0, r5
@@ -404,7 +396,7 @@ unsupported_cpu_trap:
 
 .ltorg
 
-#if WITH_KERNEL_VM && MMU_WITH_TRAMPOLINE
+#if MMU_WITH_TRAMPOLINE
 .section ".bss.prebss.translation_table"
 .align 14
 DATA(tt_trampoline)
