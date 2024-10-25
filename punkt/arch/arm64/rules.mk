@@ -1,25 +1,40 @@
+# Copyright 2016 The Fuchsia Authors
+# Copyright (c) 2008-2015 Travis Geiselbrecht
+#
+# Use of this source code is governed by a MIT-style
+# license that can be found in the LICENSE file or at
+# https://opensource.org/licenses/MIT
+
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
+# set some options based on the core
+ifeq ($(ARM_CPU),cortex-a53)
+ARCH_COMPILEFLAGS += -mcpu=$(ARM_CPU)
+else
+$(error $(LOCAL_DIR)/rules.mk doesnt have logic for arm core $(ARM_CPU))
+endif
+
 GLOBAL_DEFINES += \
 	ARM64_CPU_$(ARM_CPU)=1 \
 	ARM_ISA_ARMV8=1 \
+	ARM_ISA_ARMV8A=1 \
 	IS_64BIT=1
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/arch.c \
 	$(LOCAL_DIR)/asm.S \
+	$(LOCAL_DIR)/cache-ops.S \
 	$(LOCAL_DIR)/exceptions.S \
 	$(LOCAL_DIR)/exceptions_c.c \
 	$(LOCAL_DIR)/fpu.c \
-	$(LOCAL_DIR)/thread.c \
 	$(LOCAL_DIR)/spinlock.S \
 	$(LOCAL_DIR)/start.S \
-	$(LOCAL_DIR)/cache-ops.S \
+	$(LOCAL_DIR)/thread.c \
 	$(LOCAL_DIR)/user_copy.S \
 	$(LOCAL_DIR)/user_copy_c.c \
-	$(LOCAL_DIR)/uspace_entry.S \
+	$(LOCAL_DIR)/uspace_entry.S
 
 GLOBAL_DEFINES += \
 	ARCH_DEFAULT_STACK_SIZE=4096
@@ -44,6 +59,12 @@ GLOBAL_DEFINES += \
 endif
 
 ARCH_OPTFLAGS := -O2
+WITH_LINKER_GC ?= 1
+
+# we have a mmu and want the vmm/pmm
+WITH_KERNEL_VM ?= 1
+
+ifeq ($(WITH_KERNEL_VM),1)
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/mmu.c
@@ -66,6 +87,13 @@ GLOBAL_DEFINES += \
     KERNEL_BASE=$(KERNEL_BASE) \
     KERNEL_LOAD_OFFSET=$(KERNEL_LOAD_OFFSET)
 
+else
+
+KERNEL_BASE ?= $(MEMBASE)
+KERNEL_LOAD_OFFSET ?= 0
+
+endif
+
 GLOBAL_DEFINES += \
 	MEMBASE=$(MEMBASE) \
 	MEMSIZE=$(MEMSIZE)
@@ -76,16 +104,31 @@ TOOLCHAIN_PREFIX := $(ARCH_$(ARCH)_TOOLCHAIN_PREFIX)
 $(info TOOLCHAIN_PREFIX = $(TOOLCHAIN_PREFIX))
 
 ARCH_COMPILEFLAGS += $(ARCH_$(ARCH)_COMPILEFLAGS)
-ARCH_COMPILEFLAGS += -fno-omit-frame-pointer
-ARCH_COMPILEFLAGS_NOFLOAT := -mgeneral-regs-only
-ARCH_COMPILEFLAGS_FLOAT :=
 
 # user space linker script
 USER_LINKER_SCRIPT := $(LOCAL_DIR)/user.ld
 
-ARCH_LDFLAGS += -z max-page-size=4096
+ifeq ($(CLANG),1)
+GLOBAL_LDFLAGS = -m aarch64elf
+GLOBAL_MODULE_LDFLAGS= -m aarch64elf
+endif
+GLOBAL_LDFLAGS += -z max-page-size=4096
 
-LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) -print-libgcc-file-name)
+# kernel hard disables floating point
+KERNEL_COMPILEFLAGS += -mgeneral-regs-only -DWITH_NO_FP=1
+
+ifeq ($(CLANG),1)
+GLOBAL_COMPILEFLAGS += -target aarch64-elf -integrated-as
+endif
+
+ifeq ($(CLANG),1)
+ifeq ($(LIBGCC),)
+$(error cannot find runtime library, please set LIBGCC)
+endif
+else
+# figure out which libgcc we need based on our compile flags
+LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) -print-libgcc-file-name)
+endif
 
 # make sure some bits were set up
 MEMVARS_SET := 0

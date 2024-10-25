@@ -1,10 +1,10 @@
-/*
- * Copyright (c) 2008-2014 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2014 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #pragma once
 
 #ifndef ASSEMBLY
@@ -14,27 +14,26 @@
 #include <lk/reg.h>
 #include <arch/arm.h>
 
-#if ARM_ISA_ARMV7M || ARM_ISA_ARMV6M
-#include <arch/arm/cm.h>
-#endif
-
 __BEGIN_CDECLS
 
 #if ARM_ISA_ARMV7 || (ARM_ISA_ARMV6 && !__thumb__)
 #define ENABLE_CYCLE_COUNTER 1
 
 // override of some routines
-static inline void arch_enable_ints(void) {
+static inline void arch_enable_ints(void)
+{
     CF;
     __asm__ volatile("cpsie i");
 }
 
-static inline void arch_disable_ints(void) {
+static inline void arch_disable_ints(void)
+{
     __asm__ volatile("cpsid i");
     CF;
 }
 
-static inline bool arch_ints_disabled(void) {
+static inline bool arch_ints_disabled(void)
+{
     unsigned int state;
 
 #if ARM_ISA_ARMV7M
@@ -48,17 +47,20 @@ static inline bool arch_ints_disabled(void) {
     return !!state;
 }
 
-static inline void arch_enable_fiqs(void) {
+static inline void arch_enable_fiqs(void)
+{
     CF;
     __asm__ volatile("cpsie f");
 }
 
-static inline void arch_disable_fiqs(void) {
+static inline void arch_disable_fiqs(void)
+{
     __asm__ volatile("cpsid f");
     CF;
 }
 
-static inline bool arch_fiqs_disabled(void) {
+static inline bool arch_fiqs_disabled(void)
+{
     unsigned int state;
 
     __asm__ volatile("mrs %0, cpsr" : "=r"(state));
@@ -67,20 +69,26 @@ static inline bool arch_fiqs_disabled(void) {
     return !!state;
 }
 
-static inline bool arch_in_int_handler(void) {
-#if ARM_ISA_ARMV7M
-    uint32_t ipsr;
-    __asm volatile ("MRS %0, ipsr" : "=r" (ipsr) );
-    return (ipsr & IPSR_ISR_Msk);
-#else
+static inline bool arch_in_int_handler(void)
+{
     /* set by the interrupt glue to track that the cpu is inside a handler */
     extern bool __arm_in_handler;
 
     return __arm_in_handler;
-#endif
 }
 
-static inline ulong arch_cycle_count(void) {
+static inline void arch_spinloop_pause(void)
+{
+    __asm__ volatile("wfe");
+}
+
+static inline void arch_spinloop_signal(void)
+{
+    __asm__ volatile("sev");
+}
+
+static inline uint32_t arch_cycle_count(void)
+{
 #if ARM_ISA_ARMV7M
 #if ENABLE_CYCLE_COUNTER
 #define DWT_CYCCNT (0xE0001004)
@@ -90,7 +98,7 @@ static inline ulong arch_cycle_count(void) {
 #endif
 #elif ARM_ISA_ARMV7
     uint32_t count;
-    __asm__ volatile("mrc   p15, 0, %0, c9, c13, 0"
+    __asm__ volatile("mrc		p15, 0, %0, c9, c13, 0"
                      : "=r" (count)
                     );
     return count;
@@ -101,13 +109,25 @@ static inline ulong arch_cycle_count(void) {
 }
 
 #if WITH_SMP && ARM_ISA_ARMV7
-static inline uint arch_curr_cpu_num(void) {
+static inline uint arch_curr_cpu_num(void)
+{
     uint32_t mpidr = arm_read_mpidr();
     return ((mpidr & ((1U << SMP_CPU_ID_BITS) - 1)) >> 8 << SMP_CPU_CLUSTER_SHIFT) | (mpidr & 0xff);
 }
+
+extern uint arm_num_cpus;
+static inline uint arch_max_num_cpus(void)
+{
+    return arm_num_cpus;
+}
 #else
-static inline uint arch_curr_cpu_num(void) {
+static inline uint arch_curr_cpu_num(void)
+{
     return 0;
+}
+static inline uint arch_max_num_cpus(void)
+{
+    return 1;
 }
 #endif
 
@@ -115,11 +135,13 @@ static inline uint arch_curr_cpu_num(void) {
 
 #if !ARM_ISA_ARMV7M
 /* use the cpu local thread context pointer to store current_thread */
-static inline struct thread *arch_get_current_thread(void) {
+static inline struct thread *arch_get_current_thread(void)
+{
     return (struct thread *)arm_read_tpidrprw();
 }
 
-static inline void arch_set_current_thread(struct thread *t) {
+static inline void arch_set_current_thread(struct thread *t)
+{
     arm_write_tpidrprw((uint32_t)t);
 }
 #else // ARM_ISA_ARM7M
@@ -127,11 +149,13 @@ static inline void arch_set_current_thread(struct thread *t) {
 /* use a global pointer to store the current_thread */
 extern struct thread *_current_thread;
 
-static inline struct thread *arch_get_current_thread(void) {
+static inline struct thread *arch_get_current_thread(void)
+{
     return _current_thread;
 }
 
-static inline void arch_set_current_thread(struct thread *t) {
+static inline void arch_set_current_thread(struct thread *t)
+{
     _current_thread = t;
 }
 
@@ -139,17 +163,23 @@ static inline void arch_set_current_thread(struct thread *t) {
 
 #elif ARM_ISA_ARMV6M // cortex-m0 cortex-m0+
 
-static inline void arch_enable_fiqs(void) {
+/* the builtins are not implemented in this case, so implement them manually here */
+#define ARCH_IMPLEMENTS_ATOMICS 1
+
+static inline void arch_enable_fiqs(void)
+{
     CF;
     __asm__ volatile("cpsie f");
 }
 
-static inline void arch_disable_fiqs(void) {
+static inline void arch_disable_fiqs(void)
+{
     __asm__ volatile("cpsid f");
     CF;
 }
 
-static inline bool arch_fiqs_disabled(void) {
+static inline bool arch_fiqs_disabled(void)
+{
     unsigned int state;
 
     __asm__ volatile("mrs %0, cpsr" : "=r"(state));
@@ -158,16 +188,19 @@ static inline bool arch_fiqs_disabled(void) {
     return !!state;
 }
 
-static inline void arch_enable_ints(void) {
+static inline void arch_enable_ints(void)
+{
     CF;
     __asm__ volatile("cpsie i");
 }
-static inline void arch_disable_ints(void) {
+static inline void arch_disable_ints(void)
+{
     __asm__ volatile("cpsid i");
     CF;
 }
 
-static inline bool arch_ints_disabled(void) {
+static inline bool arch_ints_disabled(void)
+{
     unsigned int state;
 
     __asm__ volatile("mrs %0, primask" : "=r"(state));
@@ -175,42 +208,191 @@ static inline bool arch_ints_disabled(void) {
     return !!state;
 }
 
-static inline bool arch_in_int_handler(void) {
-    uint32_t ipsr;
-    __asm volatile ("MRS %0, ipsr" : "=r" (ipsr) );
-    return (ipsr & IPSR_ISR_Msk);
+static inline int atomic_add(volatile int *ptr, int val)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    *ptr = temp + val;
+    if (!state)
+        arch_enable_ints();
+    return temp;
 }
 
-static inline ulong arch_cycle_count(void) {
+static inline  int atomic_and(volatile int *ptr, int val)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    *ptr = temp & val;
+    if (!state)
+        arch_enable_ints();
+    return temp;
+}
+
+static inline int atomic_or(volatile int *ptr, int val)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    *ptr = temp | val;
+    if (!state)
+        arch_enable_ints();
+    return temp;
+}
+
+static inline int atomic_swap(volatile int *ptr, int val)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    *ptr = val;
+    if (!state)
+        arch_enable_ints();
+    return temp;
+}
+
+static inline bool atomic_cmpxchg(volatile int *ptr, int *oldval, int newval)
+{
+    int temp;
+    bool state;
+    bool success;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    if (temp == oldval) {
+        *ptr = newval;
+        success = true;
+    } else {
+        *oldval = temp;
+        success = false;
+    }
+    if (!state)
+        arch_enable_ints();
+    return success;
+}
+
+static inline int atomic_load(volatile int *ptr)
+{
+    return *ptr;
+}
+
+static inline void atomic_store(volatile int *ptr, int newval)
+{
+    *ptr = newval;
+}
+
+static inline int atomic_swap_relaxed(volatile int *ptr, int val)
+{
+    return atomic_swap(ptr, val);
+}
+
+static inline int atomic_add_relaxed(volatile int *ptr, int val)
+{
+    return atomic_add(ptr, val);
+}
+
+static inline int atomic_and_relaxed(volatile int *ptr, int val)
+{
+    return atomic_and(ptr, val);
+}
+
+static inline int atomic_or_relaxed(volatile int *ptr, int val)
+{
+    return atomic_or(ptr, val);
+}
+
+static inline bool atomic_cmpxchg_relaxed(volatile int *ptr, int *oldval, int newval)
+{
+    return atomic_cmpxchg(ptr, oldval, newval);
+}
+
+static int atomic_load_relaxed(volatile int *ptr)
+{
+    return atomic_load(ptr);
+}
+
+static void atomic_store_relaxed(volatile int *ptr, int newval)
+{
+    atomic_store(ptr, newval);
+}
+
+static inline uint32_t arch_cycle_count(void)
+{
     return 0;
 }
 
-static inline uint arch_curr_cpu_num(void) {
+static inline uint arch_curr_cpu_num(void)
+{
     return 0;
 }
 
 /* use a global pointer to store the current_thread */
 extern struct thread *_current_thread;
 
-static inline struct thread *arch_get_current_thread(void) {
+static inline struct thread *get_current_thread(void)
+{
     return _current_thread;
 }
 
-static inline void arch_set_current_thread(struct thread *t) {
+static inline void set_current_thread(struct thread *t)
+{
     _current_thread = t;
 }
 
 #else // pre-armv6 || (armv6 & thumb)
 
-#error pre-armv6 or armv6 + thumb unimplemented
+/* for pre-armv6 the bodies of these are too big to inline, call an assembly stub version */
+void _arch_enable_ints(void);
+void _arch_disable_ints(void);
 
-// Pre armv6 and/or limited thumb1 support inside a armv6 compile
-// are no longer maintained due to disuse and the complexities of
-// supporting it.
+/* the builtins are not implemented in this case, so implement them manually here */
+#define ARCH_IMPLEMENTS_ATOMICS 1
+
+int _atomic_add(volatile int *ptr, int val);
+int _atomic_and(volatile int *ptr, int val);
+int _atomic_or(volatile int *ptr, int val);
+int _atomic_add(volatile int *ptr, int val);
+int _atomic_swap(volatile int *ptr, int val);
+bool _atomic_cmpxchg(volatile int *ptr, int *oldval, int newval);
+
+uint32_t _arch_cycle_count(void);
+
+static inline int atomic_add(volatile int *ptr, int val) { return _atomic_add(ptr, val); }
+static inline int atomic_and(volatile int *ptr, int val) { return _atomic_and(ptr, val); }
+static inline int atomic_or(volatile int *ptr, int val) { return _atomic_or(ptr, val); }
+static inline int atomic_swap(volatile int *ptr, int val) { return _atomic_swap(ptr, val); }
+static inline bool atomic_cmpxchg(volatile int *ptr, int *oldval, int newval) { return _atomic_cmpxchg(ptr, oldval, newval); }
+static inline void atomic_store(volatile int *ptr, int newval) { DMB; *ptr = newval; DMB; }
+static inline int atomic_load(volatile int *ptr) { int v = *ptr; DMB; return v; }
+static inline int atomic_add_relaxed(volatile int *ptr, int val) { return _atomic_add(ptr, val); }
+static inline int atomic_and_relaxed(volatile int *ptr, int val) { return _atomic_and(ptr, val); }
+static inline int atomic_or_relaxed(volatile int *ptr, int val) { return _atomic_or(ptr, val); }
+static inline int atomic_swap_relaxed(volatile int *ptr, int val) { return _atomic_swap(ptr, val); }
+static inline bool atomic_cmpxchg_relaxed(volatile int *ptr, int *oldval, int newval) { return _atomic_cmpxchg(ptr, oldval, newval); }
+static inline void atomic_store_relaxed(volatile int *ptr, int newval) { *ptr = newval; }
+static inline int atomic_load_relaxed(volatile int *ptr) { return *ptr; }
+
+static inline void arch_enable_ints(void) { _arch_enable_ints(); }
+static inline void arch_disable_ints(void) { _arch_disable_ints(); }
+
+static inline uint32_t arch_cycle_count(void) { return _arch_cycle_count(); }
 
 #endif
 
-// TODO: use less strong versions of these (dsb sy/ld/st)
 #define mb()        DSB
 #define wmb()       DSB
 #define rmb()       DSB

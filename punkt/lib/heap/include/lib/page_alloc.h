@@ -34,8 +34,6 @@ struct page_range {
     size_t size;
 };
 
-int page_get_arenas(struct page_range *ranges, int number_of_ranges);
-
 // You can call this once at the start, and it will either return a page or it
 // will return some non-page-aligned memory that would otherwise go to waste.
 void *page_first_alloc(size_t *size_return);

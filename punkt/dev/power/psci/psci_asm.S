@@ -16,10 +16,11 @@ FUNCTION(psci_call)
     hvc     #0
     bx      lr
 #else
+    // TODO: reenable this
     /* If booted at EL2 (bit 3 set of boot EL), we need to use SMC instead of HVC. */
-    adrp    x9, arm64_boot_el
-    ldr     x9, [x9, #:lo12:arm64_boot_el]
-    tbnz    x9, #3, .Lsmc
+    //adrp    x9, arm64_boot_el
+    //ldr     x9, [x9, #:lo12:arm64_boot_el]
+    //tbnz    x9, #3, .Lsmc
     hvc     #0
     ret
 .Lsmc:

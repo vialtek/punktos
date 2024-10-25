@@ -1,19 +1,17 @@
-/*
- * Copyright (c) 2008-2015 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2015 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <lk/debug.h>
-#include <lk/trace.h>
 #include <stdlib.h>
 #include <lk/err.h>
 #include <lk/trace.h>
 #include <stdio.h>
 #include <lk/reg.h>
 #include <arch.h>
-#include <arch/atomic.h>
 #include <arch/ops.h>
 #include <arch/mmu.h>
 #include <arch/arm.h>
@@ -36,6 +34,9 @@
 #if WITH_DEV_INTERRUPT_ARM_GIC
 #include <dev/interrupt/arm_gic.h>
 #endif
+#if WITH_DEV_CACHE_PL310
+#include <dev/cache/pl310.h>
+#endif
 
 /* initial and abort stacks */
 uint8_t abort_stack[ARCH_DEFAULT_STACK_SIZE *SMP_MAX_CPUS] __CPU_ALIGN;
@@ -48,11 +49,16 @@ static void spinlock_test_secondary(void);
 /* smp boot lock */
 spin_lock_t arm_boot_cpu_lock = 1;
 volatile int secondaries_to_init = 0;
+uint arm_num_cpus = 1;
 #endif
 
-void arch_early_init(void) {
+void arch_early_init(void)
+{
     /* turn off the cache */
-    arch_disable_cache(ARCH_CACHE_FLAG_UCACHE);
+    arch_disable_cache(UCACHE);
+#if WITH_DEV_CACHE_PL310
+    pl310_set_enable(false);
+#endif
 
     arm_basic_setup();
 
@@ -62,13 +68,21 @@ void arch_early_init(void) {
     *REG32(scu_base) |= (1<<0); /* enable SCU */
 #endif
 
+#if ARM_WITH_MMU
     arm_mmu_early_init();
-    platform_init_mmu_mappings();
 
-    arch_enable_cache(ARCH_CACHE_FLAG_UCACHE);
+    platform_init_mmu_mappings();
+#endif
+
+    /* turn the cache back on */
+#if WITH_DEV_CACHE_PL310
+    pl310_set_enable(true);
+#endif
+    arch_enable_cache(UCACHE);
 }
 
-void arch_init(void) {
+void arch_init(void)
+{
 #if WITH_SMP
     arch_mp_init_percpu();
 
@@ -97,6 +111,7 @@ void arch_init(void) {
 #else
     secondaries_to_init = SMP_MAX_CPUS - 1; /* TODO: get count from somewhere else, or add cpus as they boot */
 #endif
+    arm_num_cpus += secondaries_to_init;
 
     lk_init_secondary_cpus(secondaries_to_init);
 
@@ -117,20 +132,22 @@ void arch_init(void) {
      * TODO: find a cleaner way to do this than this #define
      */
     while (secondaries_to_init > 0) {
-        __asm__ volatile("wfe");
+        arch_spinloop_pause();
     }
 #endif
 #endif // WITH_SMP
 
     //spinlock_test();
 
-    /* finish initializing the mmu */
+#if ARM_WITH_MMU
+    /* finish intializing the mmu */
     arm_mmu_init();
+#endif
 }
 
 #if WITH_SMP
-void arm_secondary_entry(uint asm_cpu_num);
-void arm_secondary_entry(uint asm_cpu_num) {
+void arm_secondary_entry(uint asm_cpu_num)
+{
     uint cpu = arch_curr_cpu_num();
     if (cpu != asm_cpu_num)
         return;
@@ -138,7 +155,7 @@ void arm_secondary_entry(uint asm_cpu_num) {
     arm_basic_setup();
 
     /* enable the local L1 cache */
-    //arch_enable_cache(ARCH_CACHE_FLAG_UCACHE);
+    //arch_enable_cache(UCACHE);
 
     // XXX may not be safe, but just hard enable i and d cache here
     // at the moment cannot rely on arch_enable_cache not dumping the L2
@@ -158,13 +175,14 @@ void arm_secondary_entry(uint asm_cpu_num) {
     /* we're done, tell the main cpu we're up */
     atomic_add(&secondaries_to_init, -1);
     smp_mb();
-    __asm__ volatile("sev");
+    arch_spinloop_signal();
 
     lk_secondary_cpu_entry();
 }
 #endif
 
-static void arm_basic_setup(void) {
+static void arm_basic_setup(void)
+{
     uint32_t sctlr = arm_read_sctlr();
 
     /* ARMV7 bits */
@@ -173,20 +191,27 @@ static void arm_basic_setup(void) {
     sctlr &= ~(1<<14); /* random cache/tlb replacement */
     sctlr &= ~(1<<25); /* E bit set to 0 on exception */
     sctlr &= ~(1<<30); /* no thumb exceptions */
-    sctlr |=  (1<<22); /* enable unaligned access */
-    sctlr &= ~(1<<1);  /* disable alignment abort */
 
     arm_write_sctlr(sctlr);
 
     uint32_t actlr = arm_read_actlr();
 #if ARM_CPU_CORTEX_A9
     actlr |= (1<<2); /* enable dcache prefetch */
+#if WITH_DEV_CACHE_PL310
+    actlr |= (1<<7); /* L2 exclusive cache */
+    actlr |= (1<<3); /* L2 write full line of zeroes */
+    actlr |= (1<<1); /* L2 prefetch hint enable */
+#endif
+#if WITH_SMP
     /* enable smp mode, cache and tlb broadcast */
     actlr |= (1<<6) | (1<<0);
+#endif
 #endif // ARM_CPU_CORTEX_A9
 #if ARM_CPU_CORTEX_A7
+#if WITH_SMP
     /* enable smp mode */
     actlr |= (1<<6);
+#endif
 #endif // ARM_CPU_CORTEX_A7
 
     arm_write_actlr(actlr);
@@ -219,13 +244,14 @@ static void arm_basic_setup(void) {
     arm_fpu_set_enable(false);
 #endif
 
-    /* set the vector base to our exception vectors so we don't need to double map at 0 */
+    /* set the vector base to our exception vectors so we dont need to double map at 0 */
 #if ARM_ISA_ARMV7
     arm_write_vbar(KERNEL_BASE + KERNEL_LOAD_OFFSET);
 #endif
 }
 
-void arch_quiesce(void) {
+void arch_quiesce(void)
+{
 #if ENABLE_CYCLE_COUNTER
 #if ARM_ISA_ARMV7
     /* disable the cycle count and performance counters */
@@ -256,7 +282,8 @@ void arch_quiesce(void) {
 
 #if ARM_ISA_ARMV7
 /* virtual to physical translation */
-status_t arm_vtop(addr_t va, addr_t *pa) {
+status_t arm_vtop(addr_t va, addr_t *pa)
+{
     spin_lock_saved_state_t irqstate;
 
     arch_interrupt_save(&irqstate, SPIN_LOCK_FLAG_INTERRUPTS);
@@ -277,7 +304,12 @@ status_t arm_vtop(addr_t va, addr_t *pa) {
 }
 #endif
 
-void arch_chain_load(void *entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3) {
+void arch_chain_load(void *entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3)
+{
+/* disabled due to changing VMM interfaces.
+ * resurrect when the vmm is stabilized and the need for a chain load arises.
+ */
+#if 0
     LTRACEF("entry %p, args 0x%lx 0x%lx 0x%lx 0x%lx\n", entry, arg0, arg1, arg2, arg3);
 
     /* we are going to shut down the system, start by disabling interrupts */
@@ -292,6 +324,7 @@ void arch_chain_load(void *entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3
     paddr_t entry_pa;
     paddr_t loader_pa;
 
+#if WITH_KERNEL_VM
     /* get the physical address of the entry point we're going to branch to */
     if (arm_vtop((addr_t)entry, &entry_pa) < 0) {
         panic("error translating entry physical address\n");
@@ -315,42 +348,37 @@ void arch_chain_load(void *entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3
     LTRACEF("loader address %p, phys 0x%lx, surrounding large page 0x%lx\n",
             &arm_chain_load, loader_pa, loader_pa_section);
 
-    arch_aspace_t *aspace;
-    bool need_context_switch;
-    // if loader_pa is within the kernel aspace, we can simply use arch_mmu_map to identity map it
-    // if its outside, we need to create a new aspace and context switch to it
-    if (arch_mmu_is_valid_vaddr(&vmm_get_kernel_aspace()->arch_aspace, loader_pa)) {
-      aspace = &vmm_get_kernel_aspace()->arch_aspace;
-      need_context_switch = false;
-    } else {
-      aspace = malloc(sizeof(*aspace));
-      arch_mmu_init_aspace(aspace, loader_pa_section, SECTION_SIZE, 0);
-      need_context_switch = true;
-    }
-
     /* using large pages, map around the target location */
-    arch_mmu_map(aspace, loader_pa_section, loader_pa_section, (2 * SECTION_SIZE / PAGE_SIZE), 0);
-    if (need_context_switch) arch_mmu_context_switch(aspace);
+    arch_mmu_map(&vmm_get_kernel_aspace()->arch_aspace, loader_pa_section, loader_pa_section, (2 * SECTION_SIZE / PAGE_SIZE), 0);
+#else
+    /* for non vm case, just branch directly into it */
+    entry_pa = (paddr_t)entry;
+    loader_pa = (paddr_t)&arm_chain_load;
+#endif
 
     LTRACEF("disabling instruction/data cache\n");
-    arch_disable_cache(ARCH_CACHE_FLAG_UCACHE);
+    arch_disable_cache(UCACHE);
+#if WITH_DEV_CACHE_PL310
+    pl310_set_enable(false);
+#endif
 
     /* put the booting cpu back into close to a default state */
     arch_quiesce();
-
-    // linux wont re-enable the FPU during boot, so it must be enabled when chainloading
-    arm_fpu_set_enable(true);
 
     LTRACEF("branching to physical address of loader\n");
 
     /* branch to the physical address version of the chain loader routine */
     void (*loader)(paddr_t entry, ulong, ulong, ulong, ulong) __NO_RETURN = (void *)loader_pa;
     loader(entry_pa, arg0, arg1, arg2, arg3);
+#else
+    PANIC_UNIMPLEMENTED;
+#endif
 }
 
 static spin_lock_t lock = 0;
 
-static void spinlock_test(void) {
+static void spinlock_test(void)
+{
     TRACE_ENTRY;
 
     spin_lock_saved_state_t state;
@@ -365,7 +393,8 @@ static void spinlock_test(void) {
     spin(1000000);
 }
 
-static void spinlock_test_secondary(void) {
+static void spinlock_test_secondary(void)
+{
     TRACE_ENTRY;
 
     spin(500000);
@@ -380,7 +409,8 @@ static void spinlock_test_secondary(void) {
 }
 
 /* switch to user mode, set the user stack pointer to user_stack_top, put the svc stack pointer to the top of the kernel stack */
-void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top, void* thread_arg) {
+void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top, void *thread_arg)
+{
     DEBUG_ASSERT(IS_ALIGNED(user_stack_top, 8));
 
     thread_t *ct = get_current_thread();

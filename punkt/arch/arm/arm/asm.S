@@ -1,10 +1,10 @@
-/*
- * Copyright (c) 2008 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <lk/asm.h>
 #include <arch/arm/cores.h>
 
@@ -18,12 +18,16 @@
      * r6
      * r5
      * r4
+     * cp15_ro
+     * cp15_rw
      */
 /* arm_context_switch(addr_t *old_sp, addr_t new_sp) */
 FUNCTION(arm_context_switch)
     /* save non callee trashed supervisor registers */
     /* spsr and user mode registers are saved and restored in the iframe by exceptions.S */
-    push    { r4-r11, lr }
+    mrc     p15, 0, r2, c13, c0, 2
+    mrc     p15, 0, r3, c13, c0, 3
+    push    { r2-r11, lr }
 
     /* save old sp */
     str     sp, [r0]
@@ -40,7 +44,9 @@ FUNCTION(arm_context_switch)
 
     /* load new regs */
     mov     sp, r1
-    pop     { r4-r11, lr }
+    pop     { r2-r11, lr }
+    mcr     p15, 0, r2, c13, c0, 2
+    mcr     p15, 0, r3, c13, c0, 3
     bx      lr
 
 .ltorg
@@ -99,6 +105,7 @@ FUNCTION(arm_chain_load)
     mov     r2, r3
     ldr     r3, [sp]
 
+#if WITH_KERNEL_VM
 /* The MMU is initialized and running at this point, so we'll need to
  * make sure we can disable it and continue to run. The caller should
  * have built a identity map for us and branched to our identity mapping,
@@ -114,6 +121,8 @@ FUNCTION(arm_chain_load)
     /* Write back SCTLR */
     mcr     p15, 0, r12, c1, c0, 0
     isb
+
+#endif // WITH_KERNEL_VM
 
     /* call the entry point */
     bx      r4

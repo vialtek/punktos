@@ -1,144 +1,44 @@
-/*
- * Copyright (c) 2014 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2014 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <stdio.h>
 #include <lk/debug.h>
 #include <lk/bits.h>
+#include <lk/trace.h>
 #include <arch/arch_ops.h>
 #include <arch/arm64.h>
+#include <kernel/thread.h>
+#include <vm/vm.h>
 
-#define SHUTDOWN_ON_FATAL 1
+#if WITH_LIB_MAGENTA
+#include <lib/user_copy.h>
+#include <magenta/exception.h>
+
+struct arch_exception_context {
+    struct arm64_iframe_long *frame;
+    uint64_t far;
+    uint32_t esr;
+};
+#endif
+
+#define LOCAL_TRACE 0
 
 struct fault_handler_table_entry {
     uint64_t pc;
     uint64_t fault_handler;
 };
 
-struct fault_status_map {
-    uint32_t fsc;
-    const char *fault_msg;
-};
-
-/* Instruction and Data abort share the fault status encoding */
-static const struct fault_status_map fsc_map[] = {
-    {
-        .fsc = 0b000000,
-        .fault_msg = "Address size fault, level 0 of translation or translation table base register"
-    },
-    {
-        .fsc = 0b000001,
-        .fault_msg = "Address size fault, level 1"
-    },
-    {
-        .fsc = 0b000010,
-        .fault_msg = "Address size fault, level 2"
-    },
-    {
-        .fsc = 0b000011,
-        .fault_msg = "Address size fault, level 3"
-    },
-    {
-        .fsc = 0b000100,
-        .fault_msg = "Translation fault, level 0"
-    },
-    {
-        .fsc = 0b000101,
-        .fault_msg = "Translation fault, level 1"
-    },
-    {
-        .fsc = 0b000110,
-        .fault_msg = "Translation fault, level 2"
-    },
-    {
-        .fsc = 0b000111,
-        .fault_msg = "Translation fault, level 3"
-    },
-    {
-        .fsc = 0b001001,
-        .fault_msg = "Access flag fault, level 1"
-    },
-    {
-        .fsc = 0b001010,
-        .fault_msg = "Access flag fault, level 2"
-    },
-    {
-        .fsc = 0b001011,
-        .fault_msg = "Access flag fault, level 3"
-    },
-    {
-        .fsc = 0b001101,
-        .fault_msg = "Permission fault, level 1"
-    },
-    {
-        .fsc = 0b001110,
-        .fault_msg = "Permission fault, level 2"
-    },
-    {
-        .fsc = 0b001111,
-        .fault_msg = "Permission fault, level 3"
-    },
-    {
-        .fsc = 0b010000,
-        .fault_msg = "Synchronous External abort, not on translation table walk"
-    },
-    {
-        .fsc = 0b010001,
-        .fault_msg = "Synchronous Tag Check fail"
-    },
-    {
-        .fsc = 0b010100,
-        .fault_msg = "Synchronous External abort, on translation table walk, level 0"
-    },
-    {
-        .fsc = 0b010101,
-        .fault_msg = "Synchronous External abort, on translation table walk, level 1"
-    },
-    {
-        .fsc = 0b010110,
-        .fault_msg = "Synchronous External abort, on translation table walk, level 2"
-    },
-    {
-        .fsc = 0b010111,
-        .fault_msg = "Synchronous External abort, on translation table walk, level 3"
-    },
-    {
-        .fsc = 0b100001,
-        .fault_msg = "Alignment fault"
-    },
-    {
-        .fsc = 0b110000,
-        .fault_msg = "TLB conflict abort"
-    },
-    {
-        .fsc = 0b111101,
-        .fault_msg = "Section Domain Fault, used only for faults reported in the PAR_EL1"
-    },
-    {
-        .fsc = 0b111110,
-        .fault_msg = "Page Domain Fault, used only for faults reported in the PAR_EL1"
-    },
-};
-
-static void print_fault_msg(uint32_t fsc)
-{
-    uint32_t i;
-
-    for (i = 0; i < countof(fsc_map); i++) {
-        if (fsc_map[i].fsc == fsc) {
-            printf("%s\n", fsc_map[i].fault_msg);
-            break;
-        }
-    }
-}
-
 extern struct fault_handler_table_entry __fault_handler_table_start[];
 extern struct fault_handler_table_entry __fault_handler_table_end[];
 
-static void dump_iframe(const struct arm64_iframe_long *iframe) {
+extern enum handler_return platform_irq(struct arm64_iframe_long *frame);
+
+static void dump_iframe(const struct arm64_iframe_long *iframe)
+{
     printf("iframe %p:\n", iframe);
     printf("x0  0x%16llx x1  0x%16llx x2  0x%16llx x3  0x%16llx\n", iframe->r[0], iframe->r[1], iframe->r[2], iframe->r[3]);
     printf("x4  0x%16llx x5  0x%16llx x6  0x%16llx x7  0x%16llx\n", iframe->r[4], iframe->r[5], iframe->r[6], iframe->r[7]);
@@ -150,15 +50,15 @@ static void dump_iframe(const struct arm64_iframe_long *iframe) {
     printf("x28 0x%16llx x29 0x%16llx lr  0x%16llx usp 0x%16llx\n", iframe->r[28], iframe->r[29], iframe->lr, iframe->usp);
     printf("elr 0x%16llx\n", iframe->elr);
     printf("spsr 0x%16llx\n", iframe->spsr);
-    arch_stacktrace(iframe->r[29], iframe->elr);
 }
 
-__WEAK void arm64_syscall(struct arm64_iframe_long *iframe, bool is_64bit) {
+__WEAK void arm64_syscall(struct arm64_iframe_long *iframe, bool is_64bit, uint32_t syscall_imm, uint64_t pc)
+{
     panic("unhandled syscall vector\n");
 }
 
-void arm64_sync_exception(struct arm64_iframe_long *iframe);
-void arm64_sync_exception(struct arm64_iframe_long *iframe) {
+void arm64_sync_exception(struct arm64_iframe_long *iframe, uint exception_flags)
+{
     struct fault_handler_table_entry *fault_handler;
     uint32_t esr = ARM64_READ_SYSREG(esr_el1);
     uint32_t ec = BITS_SHIFT(esr, 31, 26);
@@ -166,8 +66,28 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe) {
     uint32_t iss = BITS(esr, 24, 0);
 
     switch (ec) {
+        case 0b000000: /* unknown reason */
+            /* this is for a lot of reasons, but most of them are undefined instructions */
+        case 0b111000: /* BRK from arm32 */
+        case 0b111100: { /* BRK from arm64 */
+#if WITH_LIB_MAGENTA
+            /* let magenta get a shot at it */
+            arch_exception_context_t context = { .frame = iframe, .esr = esr };
+            arch_enable_ints();
+            status_t erc = magenta_exception_handler(EXC_UNDEFINED_INSTRUCTION, &context, iframe->elr);
+            arch_disable_ints();
+            if (erc == NO_ERROR)
+                return;
+#endif
+            return;
+        }
         case 0b000111: /* floating point */
-            arm64_fpu_exception(iframe);
+            if (unlikely((exception_flags & ARM64_EXCEPTION_FLAG_LOWER_EL) == 0)) {
+                /* we trapped a floating point instruction inside our own EL, this is bad */
+                printf("invalid fpu use in kernel: PC at 0x%llx\n", iframe->elr);
+                break;
+            }
+            arm64_fpu_exception(iframe, exception_flags);
             return;
         case 0b010001: /* syscall from arm32 */
         case 0b010101: /* syscall from arm64 */
@@ -178,16 +98,67 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe) {
             arch_disable_fiqs();
             return;
 #else
-            arm64_syscall(iframe, (ec == 0x15) ? true : false);
+            arm64_syscall(iframe, (ec == 0x15) ? true : false, iss & 0xffff, iframe->elr);
             return;
 #endif
         case 0b100000: /* instruction abort from lower level */
-        case 0b100001: /* instruction abort from same level */
+        case 0b100001: { /* instruction abort from same level */
+            /* read the FAR register */
+            uint64_t far = ARM64_READ_SYSREG(far_el1);
+
+            uint pf_flags = VMM_PF_FLAG_INSTRUCTION;
+            pf_flags |= BIT(ec, 0) ? 0 : VMM_PF_FLAG_USER;
+
+            LTRACEF("instruction abort: PC at 0x%llx, FAR 0x%llx, esr 0x%x, iss 0x%x\n",
+                    iframe->elr, far, esr, iss);
+
+            arch_enable_ints();
+            status_t err = vmm_page_fault_handler(far, pf_flags);
+            arch_disable_ints();
+            if (err >= 0)
+                return;
+
+#if WITH_LIB_MAGENTA
+            /* let magenta get a shot at it */
+            arch_exception_context_t context = { .frame = iframe, .esr = esr, .far = far };
+            arch_enable_ints();
+            status_t erc = magenta_exception_handler(EXC_FATAL_PAGE_FAULT, &context, iframe->elr);
+            arch_disable_ints();
+            if (erc == NO_ERROR)
+                return;
+#endif
+
             printf("instruction abort: PC at 0x%llx\n", iframe->elr);
-            print_fault_msg(BITS(iss, 5, 0));
             break;
+        }
         case 0b100100: /* data abort from lower level */
         case 0b100101: { /* data abort from same level */
+            /* read the FAR register */
+            uint64_t far = ARM64_READ_SYSREG(far_el1);
+
+            uint pf_flags = 0;
+            pf_flags |= BIT(iss, 6) ? VMM_PF_FLAG_WRITE : 0;
+            pf_flags |= BIT(ec, 0) ? 0 : VMM_PF_FLAG_USER;
+
+            LTRACEF("data fault: PC at 0x%llx, FAR 0x%llx, esr 0x%x, iss 0x%x\n",
+                    iframe->elr, far, esr, iss);
+
+
+            // TODO: Make it work with vmm
+            // arch_enable_ints();
+            // status_t err = vmm_page_fault_handler(far, pf_flags);
+            // arch_disable_ints();
+            // if (err >= 0)
+            //     return;
+
+            // Check if the current thread was expecting a data fault and
+            // we should return to its handler.
+            thread_t *thr = get_current_thread();
+            if (thr->arch.data_fault_resume != NULL) {
+                iframe->elr = (uintptr_t)thr->arch.data_fault_resume;
+                return;
+            }
+
             for (fault_handler = __fault_handler_table_start;
                     fault_handler < __fault_handler_table_end;
                     fault_handler++) {
@@ -197,34 +168,97 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe) {
                 }
             }
 
-            /* read the FAR register */
-            uint64_t far = ARM64_READ_SYSREG(far_el1);
+#if WITH_LIB_MAGENTA
+            /* let magenta get a shot at it */
+            arch_exception_context_t context = { .frame = iframe, .esr = esr, .far = far };
+            arch_enable_ints();
+            status_t erc = magenta_exception_handler(EXC_FATAL_PAGE_FAULT, &context, iframe->elr);
+            arch_disable_ints();
+            if (erc == NO_ERROR)
+                return;
+#endif
 
-            printf("data fault: %s access from PC 0x%llx, FAR 0x%llx, iss 0x%x (DFSC 0x%lx)\n",
-                   BIT(iss, 6) ? "Write" : "Read", iframe->elr, far, iss, BITS(iss, 5, 0));
-            print_fault_msg(BITS(iss, 5, 0));
+            /* decode the iss */
+            if (BIT(iss, 24)) { /* ISV bit */
+                printf("data fault: PC at 0x%llx, FAR 0x%llx, iss 0x%x (DFSC 0x%lx)\n",
+                       iframe->elr, far, iss, BITS(iss, 5, 0));
+            } else {
+                printf("data fault: PC at 0x%llx, FAR 0x%llx, iss 0x%x\n", iframe->elr, far, iss);
+            }
+
             break;
         }
-        case 0b111100: {
-            printf("BRK #0x%04lx instruction: PC at 0x%llx\n",
-                   BITS_SHIFT(iss, 15, 0), iframe->elr);
-            break;
-        }
-        default:
+        default: {
+#if WITH_LIB_MAGENTA
+            /* let magenta get a shot at it */
+            arch_exception_context_t context = { .frame = iframe, .esr = esr };
+            arch_enable_ints();
+            status_t erc = magenta_exception_handler(EXC_GENERAL, &context, iframe->elr);
+            arch_disable_ints();
+            if (erc == NO_ERROR)
+                return;
+#endif
             printf("unhandled synchronous exception\n");
+        }
     }
 
-    /* unhandled exception, die here */
+    /* fatal exception, die here */
     printf("ESR 0x%x: ec 0x%x, il 0x%x, iss 0x%x\n", esr, ec, il, iss);
     dump_iframe(iframe);
 
     panic("die\n");
 }
 
-void arm64_invalid_exception(struct arm64_iframe_long *iframe, unsigned int which);
-void arm64_invalid_exception(struct arm64_iframe_long *iframe, unsigned int which) {
+void arm64_irq(struct arm64_iframe_long *iframe, uint exception_flags)
+{
+    LTRACEF("iframe %p, flags 0x%x\n", iframe, exception_flags);
+
+    enum handler_return ret = platform_irq(iframe);
+    if (ret != INT_NO_RESCHEDULE)
+        thread_preempt();
+}
+
+void arm64_invalid_exception(struct arm64_iframe_long *iframe, unsigned int which)
+{
     printf("invalid exception, which 0x%x\n", which);
     dump_iframe(iframe);
 
     panic("die\n");
 }
+
+#if WITH_LIB_MAGENTA
+void arch_dump_exception_context(arch_exception_context_t *context)
+{
+    uint32_t ec = BITS_SHIFT(context->esr, 31, 26);
+    uint32_t iss = BITS(context->esr, 24, 0);
+
+    switch (ec) {
+        case 0b100000: /* instruction abort from lower level */
+        case 0b100001: /* instruction abort from same level */
+            printf("instruction abort: PC at 0x%llx, address 0x%llx IFSC 0x%lx %s\n",
+                    context->frame->elr, context->far,
+                    BITS(context->esr, 5, 0),
+                    BIT(ec, 0) ? "" : "user ");
+
+            break;
+        case 0b100100: /* data abort from lower level */
+        case 0b100101: /* data abort from same level */
+            printf("data abort: PC at 0x%llx, address 0x%llx %s%s\n",
+                    context->frame->elr, context->far,
+                    BIT(ec, 0) ? "" : "user ",
+                    BIT(iss, 6) ? "write" : "read");
+    }
+
+    dump_iframe(context->frame);
+
+    // try to dump the user stack
+    if (is_user_address(context->frame->usp)) {
+        uint8_t buf[256];
+        if (copy_from_user(buf, (void *)context->frame->usp, sizeof(buf)) == NO_ERROR) {
+            printf("bottom of user stack at 0x%lx:\n", (vaddr_t)context->frame->usp);
+            hexdump_ex(buf, sizeof(buf), context->frame->usp);
+        }
+    }
+}
+#endif
+

@@ -11,6 +11,7 @@
 #include <lib/bio.h>
 #include <lib/bcache.h>
 #include <lib/fs.h>
+#include <kernel/auto_lock.h>
 #include <kernel/mutex.h>
 
 // computed constants about a particular mount

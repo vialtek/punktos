@@ -36,10 +36,7 @@ static void *map_region(paddr_t pa, size_t len, const char *name) {
   const size_t align_offset = pa - pa_page_aligned;
   size_t map_len = ROUNDUP(len + align_offset, PAGE_SIZE);
 
-  uint perms = ARCH_MMU_FLAG_PERM_RO;
-  if (arch_mmu_supports_nx_mappings()) {
-    perms |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
-  }
+  uint perms = ARCH_MMU_FLAG_PERM_RO | ARCH_MMU_FLAG_PERM_NO_EXECUTE;
 
   void *ptr;
   status_t err = vmm_alloc_physical(vmm_get_kernel_aspace(), name, map_len,

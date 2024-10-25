@@ -1,3 +1,10 @@
+# Copyright 2016 The Fuchsia Authors
+# Copyright (c) 2008-2015 Travis Geiselbrecht
+#
+# Use of this source code is governed by a MIT-style
+# license that can be found in the LICENSE file or at
+# https://opensource.org/licenses/MIT
+
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
@@ -16,19 +23,20 @@ HANDLED_CORE := false
 ifeq ($(ARM_CPU),cortex-a7)
 GLOBAL_DEFINES += \
 	ARM_WITH_CP15=1 \
+	ARM_WITH_MMU=1 \
 	ARM_ISA_ARMv7=1 \
 	ARM_ISA_ARMv7A=1 \
 	ARM_WITH_VFP=1 \
 	ARM_WITH_NEON=1 \
 	ARM_WITH_THUMB=1 \
 	ARM_WITH_THUMB2=1 \
-	ARM_WITH_CACHE=1 \
-	ARM_WITH_HYP=1
+	ARM_WITH_CACHE=1
 HANDLED_CORE := true
 endif
 ifeq ($(ARM_CPU),cortex-a15)
 GLOBAL_DEFINES += \
 	ARM_WITH_CP15=1 \
+	ARM_WITH_MMU=1 \
 	ARM_ISA_ARMv7=1 \
 	ARM_ISA_ARMv7A=1 \
 	ARM_WITH_THUMB=1 \
@@ -45,6 +53,7 @@ endif
 ifeq ($(ARM_CPU),cortex-a8)
 GLOBAL_DEFINES += \
 	ARM_WITH_CP15=1 \
+	ARM_WITH_MMU=1 \
 	ARM_ISA_ARMv7=1 \
 	ARM_ISA_ARMv7A=1 \
 	ARM_WITH_VFP=1 \
@@ -58,6 +67,7 @@ endif
 ifeq ($(ARM_CPU),cortex-a9)
 GLOBAL_DEFINES += \
 	ARM_WITH_CP15=1 \
+	ARM_WITH_MMU=1 \
 	ARM_ISA_ARMv7=1 \
 	ARM_ISA_ARMv7A=1 \
 	ARM_WITH_THUMB=1 \
@@ -69,6 +79,7 @@ ifeq ($(ARM_CPU),cortex-a9-neon)
 GLOBAL_DEFINES += \
 	ARM_CPU_CORTEX_A9=1 \
 	ARM_WITH_CP15=1 \
+	ARM_WITH_MMU=1 \
 	ARM_ISA_ARMv7=1 \
 	ARM_ISA_ARMv7A=1 \
 	ARM_WITH_VFP=1 \
@@ -81,6 +92,7 @@ endif
 ifeq ($(ARM_CPU),arm1136j-s)
 GLOBAL_DEFINES += \
 	ARM_WITH_CP15=1 \
+	ARM_WITH_MMU=1 \
 	ARM_ISA_ARMv6=1 \
 	ARM_WITH_THUMB=1 \
 	ARM_WITH_CACHE=1 \
@@ -90,6 +102,7 @@ endif
 ifeq ($(ARM_CPU),arm1176jzf-s)
 GLOBAL_DEFINES += \
 	ARM_WITH_CP15=1 \
+	ARM_WITH_MMU=1 \
 	ARM_ISA_ARMv6=1 \
 	ARM_WITH_VFP=1 \
 	ARM_WITH_THUMB=1 \
@@ -106,6 +119,7 @@ THUMBCFLAGS :=
 THUMBINTERWORK :=
 ifeq ($(ENABLE_THUMB),true)
 THUMBCFLAGS := -mthumb -D__thumb__
+THUMBINTERWORK := -mthumb-interwork
 endif
 
 GLOBAL_INCLUDES += \
@@ -119,14 +133,12 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/arm/cache.c \
 	$(LOCAL_DIR)/arm/debug.c \
 	$(LOCAL_DIR)/arm/ops.S \
+	$(LOCAL_DIR)/arm/exceptions.S \
 	$(LOCAL_DIR)/arm/faults.c \
+	$(LOCAL_DIR)/arm/fpu.c \
 	$(LOCAL_DIR)/arm/mmu.c \
 	$(LOCAL_DIR)/arm/thread.c \
 	$(LOCAL_DIR)/arm/uspace_entry.S
-
-MODULE_FLOAT_SRCS += \
-	$(LOCAL_DIR)/arm/exceptions.S \
-	$(LOCAL_DIR)/arm/fpu.c \
 
 MODULE_ARM_OVERRIDE_SRCS := \
 	$(LOCAL_DIR)/arm/arch.c
@@ -137,8 +149,8 @@ GLOBAL_DEFINES += \
 ARCH_OPTFLAGS := -O2
 WITH_LINKER_GC ?= 1
 
-# use the numeric registers when disassembling code
-ARCH_OBJDUMP_FLAGS := -Mreg-names-raw
+# we have a mmu and want the vmm/pmm
+WITH_KERNEL_VM ?= 1
 
 # for arm, have the kernel occupy the entire top 3GB of virtual space,
 # but put the kernel itself at 0x80000000.
@@ -186,21 +198,25 @@ TOOLCHAIN_PREFIX := $(ARCH_$(ARCH)_TOOLCHAIN_PREFIX)
 $(info TOOLCHAIN_PREFIX = $(TOOLCHAIN_PREFIX))
 
 ARCH_COMPILEFLAGS += $(ARCH_$(ARCH)_COMPILEFLAGS)
-ARCH_COMPILEFLAGS_NOFLOAT :=
-ARCH_COMPILEFLAGS_FLOAT := $(ARCH_$(ARCH)_COMPILEFLAGS_FLOAT)
+
+OBJDUMP_LIST_FLAGS := -Mreg-names-raw
 
 GLOBAL_COMPILEFLAGS += $(THUMBINTERWORK)
 
-# set the max page size to something more reasonable (defaults to 64K or above)
-ARCH_LDFLAGS += -z max-page-size=4096
+# hard disable the fpu in kernel code
+KERNEL_COMPILEFLAGS += -msoft-float -mfloat-abi=soft -DWITH_NO_FP=1
+
+# set the max page size to something more reasonables (defaults to 64K or above)
+GLOBAL_LDFLAGS += -z max-page-size=4096
 
 # userspace support
 USER_LINKER_SCRIPT := $(LOCAL_DIR)/user.ld
 
 # find the direct path to libgcc.a for our particular multilib variant
 LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) $(THUMBCFLAGS) -print-libgcc-file-name)
-#$(info LIBGCC = $(LIBGCC))
-#$(info LIBGCC COMPILEFLAGS = $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) $(THUMBCFLAGS))
+$(info LIBGCC = $(LIBGCC))
+
+$(info GLOBAL_COMPILEFLAGS = $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) $(THUMBCFLAGS))
 
 # make sure some bits were set up
 MEMVARS_SET := 0
@@ -240,12 +256,12 @@ linkerscript.phony:
 .PHONY: linkerscript.phony
 
 # arm specific script to try to guess stack usage
-$(OUTELF).stack: LOCAL_DIR:=$(LOCAL_DIR)
-$(OUTELF).stack: $(OUTELF)
+$(OUTLKELF).stack: LOCAL_DIR:=$(LOCAL_DIR)
+$(OUTLKELF).stack: $(OUTLKELF)
 	$(NOECHO)echo generating stack usage $@
-	$(NOECHO)$(OBJDUMP) $(ARCH_OBJDUMP_FLAGS) -d $< | $(LOCAL_DIR)/stackusage | $(CPPFILT) | sort -n -k 1 -r > $@
+	$(NOECHO)$(OBJDUMP) -Mreg-names-raw -d $< | $(LOCAL_DIR)/stackusage | $(CPPFILT) | sort -n -k 1 -r > $@
 
-EXTRA_BUILDDEPS += $(OUTELF).stack
-GENERATED += $(OUTELF).stack
+EXTRA_BUILDDEPS += $(OUTLKELF).stack
+GENERATED += $(OUTLKELF).stack
 
 include make/module.mk

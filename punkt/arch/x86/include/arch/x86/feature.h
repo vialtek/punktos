@@ -1,183 +1,50 @@
-/*
- * Copyright (c) 2019 Travis Geiselbrecht
- * Copyright 2016 The Fuchsia Authors
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files
- * (the "Software"), to deal in the Software without restriction,
- * including without limitation the rights to use, copy, modify, merge,
- * publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
+// Copyright 2016 The Fuchsia Authors
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #pragma once
 
-#include <arch/x86.h>
-#include <inttypes.h>
 #include <lk/compiler.h>
-#include <stdbool.h>
-#include <assert.h>
+#include <stdint.h>
+#include <arch/x86.h>
 
 __BEGIN_CDECLS
 
-void x86_feature_early_init(void);
-void x86_feature_init(void);
-
-enum x86_cpu_level {
-    X86_CPU_LEVEL_386 = 3,
-    X86_CPU_LEVEL_486 = 4,
-    X86_CPU_LEVEL_PENTIUM = 5,
-    X86_CPU_LEVEL_PENTIUM_PRO = 6,
-    // everything after this is PPRO+ for now
-};
-extern enum x86_cpu_level __x86_cpu_level;
-
-static inline enum x86_cpu_level x86_get_cpu_level(void) {
-    return __x86_cpu_level;
-}
-
-enum x86_cpu_vendor {
-    X86_CPU_VENDOR_UNKNOWN,
-    X86_CPU_VENDOR_INTEL,
-    X86_CPU_VENDOR_AMD,
-    X86_CPU_VENDOR_UMC,
-    X86_CPU_VENDOR_CYRIX,
-    X86_CPU_VENDOR_NEXGEN,
-    X86_CPU_VENDOR_CENTAUR,
-    X86_CPU_VENDOR_RISE,
-    X86_CPU_VENDOR_SIS,
-    X86_CPU_VENDOR_TRANSMETA,
-    X86_CPU_VENDOR_NSC,
-};
-extern enum x86_cpu_vendor __x86_cpu_vendor;
-
-static inline enum x86_cpu_vendor x86_get_cpu_vendor(void) {
-    return __x86_cpu_vendor;
-}
-
-struct x86_model_info {
-  uint8_t processor_type;
-  uint8_t family;
-  uint8_t model;
-  uint8_t stepping;
-
-  uint32_t display_family;
-  uint32_t display_model;
-};
-extern struct x86_model_info __x86_model;
-
-static inline const struct x86_model_info* x86_get_model(void) {
-    return &__x86_model;
-}
-
-/* cpuid leaves */
-enum x86_cpuid_leaf_num {
-  X86_CPUID_BASE = 0,
-  X86_CPUID_MODEL_FEATURES = 0x1,
-  X86_CPUID_CACHE_V1 = 0x2,
-  X86_CPUID_CACHE_V2 = 0x4,
-  X86_CPUID_MON = 0x5,
-  X86_CPUID_THERMAL_AND_POWER = 0x6,
-  X86_CPUID_EXTENDED_FEATURE_FLAGS = 0x7,
-  X86_CPUID_PERFORMANCE_MONITORING = 0xa,
-  X86_CPUID_TOPOLOGY = 0xb,
-  X86_CPUID_XSAVE = 0xd,
-  X86_CPUID_PT = 0x14,
-  X86_CPUID_TSC = 0x15,
-  __X86_MAX_SUPPORTED_CPUID = X86_CPUID_TSC,
-
-  X86_CPUID_HYP_BASE = 0x40000000,
-  X86_CPUID_HYP_VENDOR = 0x40000000,
-  X86_CPUID_KVM_FEATURES = 0x40000001,
-  __X86_MAX_SUPPORTED_CPUID_HYP = X86_CPUID_KVM_FEATURES,
-
-  X86_CPUID_EXT_BASE = 0x80000000,
-  X86_CPUID_BRAND = 0x80000002,
-  X86_CPUID_ADDR_WIDTH = 0x80000008,
-  X86_CPUID_AMD_TOPOLOGY = 0x8000001e,
-  __X86_MAX_SUPPORTED_CPUID_EXT = X86_CPUID_AMD_TOPOLOGY,
-};
-
-struct x86_cpuid_bit {
-  enum x86_cpuid_leaf_num leaf_num;
-  uint8_t word;
-  uint8_t bit;
-};
-
-#define X86_CPUID_BIT(leaf, word, bit) \
-  (struct x86_cpuid_bit) { (enum x86_cpuid_leaf_num)(leaf), (word), (bit) }
-
-struct x86_cpuid_leaf {
+struct cpuid_leaf {
     uint32_t a;
     uint32_t b;
     uint32_t c;
     uint32_t d;
 };
 
-extern struct x86_cpuid_leaf saved_cpuids[__X86_MAX_SUPPORTED_CPUID + 1];
-extern struct x86_cpuid_leaf saved_cpuids_hyp[__X86_MAX_SUPPORTED_CPUID_HYP - X86_CPUID_HYP_BASE + 1];
-extern struct x86_cpuid_leaf saved_cpuids_ext[__X86_MAX_SUPPORTED_CPUID_EXT - X86_CPUID_EXT_BASE + 1];
-extern uint32_t max_cpuid_leaf;
-extern uint32_t max_cpuid_leaf_hyp;
-extern uint32_t max_cpuid_leaf_ext;
+enum x86_cpuid_leaf_num {
+    X86_CPUID_BASE = 0,
+    X86_CPUID_TOPOLOGY = 0xb,
 
+    X86_CPUID_EXT_BASE = 0x80000000,
+    X86_CPUID_ADDR_WIDTH = 0x80000008,
+};
+
+struct x86_cpuid_bit {
+    enum x86_cpuid_leaf_num leaf_num;
+    uint8_t word;
+    uint8_t bit;
+};
+
+#define X86_CPUID_BIT(leaf, word, bit) \
+        (struct x86_cpuid_bit){(enum x86_cpuid_leaf_num)(leaf), (word), (bit)}
+
+void x86_feature_init(void);
+const struct cpuid_leaf *x86_get_cpuid_leaf(enum x86_cpuid_leaf_num);
 /* Retrieve the specified subleaf.  This function is not cached.
  * Returns false if leaf num is invalid */
-bool x86_get_cpuid_subleaf(enum x86_cpuid_leaf_num, uint32_t subleaf, struct x86_cpuid_leaf *);
+bool x86_get_cpuid_subleaf(
+        enum x86_cpuid_leaf_num, uint32_t, struct cpuid_leaf *);
+bool x86_feature_test(struct x86_cpuid_bit);
 
-static inline const struct x86_cpuid_leaf* x86_get_cpuid_leaf(enum x86_cpuid_leaf_num leaf) {
-  if (leaf < X86_CPUID_HYP_BASE) {
-    if (unlikely(leaf > max_cpuid_leaf))
-      return NULL;
-
-    return &saved_cpuids[leaf];
-  } else if (leaf < X86_CPUID_EXT_BASE) {
-    if (unlikely(leaf > max_cpuid_leaf_hyp))
-      return NULL;
-
-    return &saved_cpuids_hyp[(uint32_t)leaf - (uint32_t)X86_CPUID_HYP_BASE];
-  } else {
-    if (unlikely(leaf > max_cpuid_leaf_ext))
-      return NULL;
-
-    return &saved_cpuids_ext[(uint32_t)leaf - (uint32_t)X86_CPUID_EXT_BASE];
-  }
-}
-
-static inline bool x86_feature_test(struct x86_cpuid_bit bit) {
-  DEBUG_ASSERT(bit.word <= 3 && bit.bit <= 31);
-
-  if (bit.word > 3 || bit.bit > 31)
-    return false;
-
-  const struct x86_cpuid_leaf* leaf = x86_get_cpuid_leaf(bit.leaf_num);
-  if (!leaf)
-    return false;
-
-  switch (bit.word) {
-    case 0:
-      return !!((1u << bit.bit) & leaf->a);
-    case 1:
-      return !!((1u << bit.bit) & leaf->b);
-    case 2:
-      return !!((1u << bit.bit) & leaf->c);
-    case 3:
-      return !!((1u << bit.bit) & leaf->d);
-    default:
-      return false;
-  }
-}
+void x86_feature_debug(void);
 
 /* feature bits for x86_feature_test */
 /* add feature bits to test here */
@@ -257,25 +124,56 @@ static inline bool x86_feature_test(struct x86_cpuid_bit bit) {
 #define X86_FEATURE_RDTSCP              X86_CPUID_BIT(0x80000001, 3, 27)
 #define X86_FEATURE_INVAR_TSC           X86_CPUID_BIT(0x80000007, 3, 8)
 
-// accessor to read some fields out of a register
-static inline uint32_t x86_get_vaddr_width(void) {
-    const struct x86_cpuid_leaf *leaf;
-
-    leaf = x86_get_cpuid_leaf(X86_CPUID_ADDR_WIDTH);
-    if (!leaf) {
+/* legacy accessors */
+static inline uint8_t x86_linear_address_width(void)
+{
+    const struct cpuid_leaf *leaf = x86_get_cpuid_leaf(X86_CPUID_ADDR_WIDTH);
+    if (!leaf)
         return 0;
-    }
+
+    /*
+     Extracting bit 15:8 from eax register
+     Bits 15-08: #Linear Address Bits
+    */
     return (leaf->a >> 8) & 0xff;
 }
 
-static inline uint32_t x86_get_paddr_width(void) {
-    const struct x86_cpuid_leaf *leaf;
-
-    leaf = x86_get_cpuid_leaf(X86_CPUID_ADDR_WIDTH);
-    if (!leaf) {
+static inline uint8_t x86_physical_address_width(void)
+{
+    const struct cpuid_leaf *leaf = x86_get_cpuid_leaf(X86_CPUID_ADDR_WIDTH);
+    if (!leaf)
         return 0;
-    }
+
+    /*
+     Extracting bit 7:0 from eax register
+     Bits 07-00: #Physical Address Bits
+    */
     return leaf->a & 0xff;
 }
+
+#define X86_TOPOLOGY_INVALID 0
+#define X86_TOPOLOGY_SMT 1
+#define X86_TOPOLOGY_CORE 2
+
+struct x86_topology_level {
+    /* The number of bits of the APIC ID that encode this level */
+    uint8_t num_bits;
+    /* The type of relationship this level describes (hyperthread/core/etc) */
+    uint8_t type;
+};
+
+/**
+ * @brief Fetch the topology information for the given level.
+ *
+ * This interface is uncached.
+ *
+ * @param level The level to retrieve info for.  Should initially be 0 and
+ * incremented with each call.
+ * @param info The structure to populate with the discovered information
+ *
+ * @return true if the requested level existed (and there may be higher levels).
+ * @return false if the requested level does not exist (and no higher ones do).
+ */
+bool x86_topology_enumerate(uint8_t level, struct x86_topology_level *info);
 
 __END_CDECLS

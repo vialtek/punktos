@@ -17,7 +17,6 @@
 #include <lk/pow2.h>
 #include <kernel/mutex.h>
 #include <lk/init.h>
-#include <arch/atomic.h>
 
 #define LOCAL_TRACE 0
 

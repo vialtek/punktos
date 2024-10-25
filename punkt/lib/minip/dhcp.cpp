@@ -10,6 +10,7 @@
 #include "minip-internal.h"
 
 #include <endian.h>
+#include <kernel/auto_lock.h>
 #include <kernel/mutex.h>
 #include <kernel/thread.h>
 #include <lk/debug.h>

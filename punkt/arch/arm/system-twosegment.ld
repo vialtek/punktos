@@ -1,3 +1,11 @@
+/*
+// Copyright 2016 The Fuchsia Authors
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+*/
+
 OUTPUT_FORMAT("elf32-littlearm", "elf32-littlearm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
 
@@ -5,11 +13,9 @@ ENTRY(_start)
 SECTIONS
 {
     . = %ROMBASE%;
-    __rom_start = .;
 
     /* text/read-only data */
     .text : {
-        KEEP(*(.text.boot.secondstage))
         KEEP(*(.text.boot.vectab1))
         KEEP(*(.text.boot.vectab2))
         KEEP(*(.text.boot))
@@ -63,7 +69,6 @@ SECTIONS
     .dummy_post_rodata : {
         /* end of rodata, start of data area */
         __rodata_end = . ;
-        __rom_end = . ;
         __data_start_rom = .;
     }
 
@@ -104,7 +109,7 @@ SECTIONS
         __data_end = .;
     }
 
-    /* uninitialized data (in same segment as writable data) */
+    /* unintialized data (in same segment as writable data) */
     .bss : ALIGN(4) {
         KEEP(*(.bss.prebss.*))
         . = ALIGN(4);
@@ -122,5 +127,5 @@ SECTIONS
     _end_of_ram = .;
 
     /* Strip unnecessary stuff */
-    /DISCARD/ : { *(.comment .note .eh_frame) }
+    /DISCARD/ : { *(.comment .note) }
 }

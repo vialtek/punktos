@@ -1,3 +1,11 @@
+/*
+// Copyright 2016 The Fuchsia Authors
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+*/
+
 OUTPUT_FORMAT("elf64-littleaarch64", "elf64-bigaarch64", "elf64-littleaarch64")
 OUTPUT_ARCH(aarch64)
 
@@ -74,6 +82,7 @@ SECTIONS
         /* in one segment binaries, the rom data address is on top of the ram data address */
         __data_start = .;
         *(.data .data.* .gnu.linkonce.d.*)
+        *(.bootfs)
     }
 
     .ctors : ALIGN(8) {
@@ -103,7 +112,7 @@ SECTIONS
         __bss_start = .;
         KEEP(*(.bss.prebss.*))
         . = ALIGN(8);
-        __post_prebss_bss_start = .;
+	__post_prebss_bss_start = .;
         *(.bss .bss.*)
         *(.gnu.linkonce.b.*)
         *(COMMON)
@@ -119,5 +128,5 @@ SECTIONS
     _end_of_ram = .;
 
     /* Strip unnecessary stuff */
-    /DISCARD/ : { *(.comment .note .eh_frame) }
+    /DISCARD/ : { *(.comment .note) }
 }

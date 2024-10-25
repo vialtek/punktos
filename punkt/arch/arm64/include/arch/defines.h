@@ -1,10 +1,10 @@
-/*
- * Copyright (c) 2008 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #pragma once
 
 #define SHIFT_4K        (12)
@@ -24,8 +24,5 @@
 #define PAGE_SIZE (1UL << PAGE_SIZE_SHIFT)
 #define USER_PAGE_SIZE (1UL << USER_PAGE_SIZE_SHIFT)
 
-#if ARM64_CPU_CORTEX_A53 || ARM64_CPU_CORTEX_A57 || ARM64_CPU_CORTEX_A72
-#define CACHE_LINE 64
-#else
 #define CACHE_LINE 32
-#endif
+

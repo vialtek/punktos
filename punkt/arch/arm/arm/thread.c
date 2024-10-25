@@ -1,10 +1,10 @@
-/*
- * Copyright (c) 2008-2014 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2008-2014 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #include <sys/types.h>
 #include <string.h>
 #include <stdlib.h>
@@ -14,6 +14,8 @@
 #include <arch/arm.h>
 
 struct context_switch_frame {
+    vaddr_t cp15_rw;
+    vaddr_t cp15_ro;
     vaddr_t r4;
     vaddr_t r5;
     vaddr_t r6;
@@ -25,26 +27,10 @@ struct context_switch_frame {
     vaddr_t lr;
 };
 
-static void initial_thread_func(void) __NO_RETURN;
-static void initial_thread_func(void) {
-    int ret;
+extern void arm_context_switch(addr_t *old_sp, addr_t new_sp);
 
-//  dprintf("initial_thread_func: thread %p calling %p with arg %p\n", current_thread, current_thread->entry, current_thread->arg);
-//  dump_thread(current_thread);
-
-    /* release the thread lock that was implicitly held across the reschedule */
-    spin_unlock(&thread_lock);
-    arch_enable_ints();
-
-    thread_t *ct = get_current_thread();
-    ret = ct->entry(ct->arg);
-
-//  dprintf("initial_thread_func: thread %p exiting with %d\n", current_thread, ret);
-
-    thread_exit(ret);
-}
-
-void arch_thread_initialize(thread_t *t) {
+void arch_thread_initialize(thread_t *t, vaddr_t entry_point)
+{
     // create a default stack frame on the stack
     vaddr_t stack_top = (vaddr_t)t->stack + t->stack_size;
 
@@ -56,7 +42,7 @@ void arch_thread_initialize(thread_t *t) {
 
     // fill it in
     memset(frame, 0, sizeof(*frame));
-    frame->lr = (vaddr_t)&initial_thread_func;
+    frame->lr = (vaddr_t)entry_point;
 
     // set the stack pointer
     t->arch.sp = (vaddr_t)frame;
@@ -66,7 +52,8 @@ void arch_thread_initialize(thread_t *t) {
 #endif
 }
 
-void arch_context_switch(thread_t *oldthread, thread_t *newthread) {
+void arch_context_switch(thread_t *oldthread, thread_t *newthread)
+{
 //  TRACEF("arch_context_switch: cpu %u old %p (%s), new %p (%s)\n", arch_curr_cpu_num(), oldthread, oldthread->name, newthread, newthread->name);
 #if ARM_WITH_VFP
     arm_fpu_thread_swap(oldthread, newthread);
@@ -75,7 +62,8 @@ void arch_context_switch(thread_t *oldthread, thread_t *newthread) {
     arm_context_switch(&oldthread->arch.sp, newthread->arch.sp);
 }
 
-void arch_dump_thread(thread_t *t) {
+void arch_dump_thread(thread_t *t)
+{
     if (t->state != THREAD_RUNNING) {
         dprintf(INFO, "\tarch: ");
         dprintf(INFO, "sp 0x%lx\n", t->arch.sp);

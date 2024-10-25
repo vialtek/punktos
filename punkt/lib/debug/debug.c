@@ -89,7 +89,7 @@ FILE *get_panic_fd(void) {
     return &panic_fd;
 }
 
-void hexdump(const void *ptr, size_t len) {
+void hexdump_ex(const void *ptr, size_t len, uint64_t disp_addr) {
     addr_t address = (addr_t)ptr;
     size_t count;
 
@@ -101,7 +101,10 @@ void hexdump(const void *ptr, size_t len) {
         size_t s = ROUNDUP(MIN(len - count, 16), 4);
         size_t i;
 
-        printf("0x%08lx: ", address);
+        printf(((disp_addr + len) > 0xFFFFFFFF)
+               ? "0x%016llx: "
+               : "0x%08llx: ", disp_addr + count);
+
         for (i = 0; i < s / 4; i++) {
             u.buf[i] = ((const uint32_t *)address)[i];
             printf("%08x ", u.buf[i]);
@@ -128,12 +131,11 @@ void hexdump8_ex(const void *ptr, size_t len, uint64_t disp_addr) {
     addr_t address = (addr_t)ptr;
     size_t count;
     size_t i;
-    const char *addr_fmt = ((disp_addr + len) > 0xFFFFFFFF)
-                           ? "0x%016llx: "
-                           : "0x%08llx: ";
 
     for (count = 0 ; count < len; count += 16) {
-        printf(addr_fmt, disp_addr + count);
+        printf(((disp_addr + len) > 0xFFFFFFFF)
+               ? "0x%016llx: "
+               : "0x%08llx: ", disp_addr + count);
 
         for (i=0; i < MIN(len - count, 16); i++) {
             printf("%02hhx ", *(const uint8_t *)(address + i));

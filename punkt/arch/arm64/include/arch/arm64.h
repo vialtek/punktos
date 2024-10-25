@@ -1,11 +1,13 @@
-/*
- * Copyright (c) 2014 Travis Geiselbrecht
- *
- * Use of this source code is governed by a MIT-style
- * license that can be found in the LICENSE file or at
- * https://opensource.org/licenses/MIT
- */
+// Copyright 2016 The Fuchsia Authors
+// Copyright (c) 2014 Travis Geiselbrecht
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
 #pragma once
+
+#ifndef ASSEMBLY
 
 #include <stdbool.h>
 #include <sys/types.h>
@@ -57,36 +59,22 @@ struct arm64_iframe_short {
     uint64_t spsr;
 };
 
-struct arm64_stackframe {
-    uint64_t fp;
-    uint64_t pc;
-};
-
 struct thread;
 extern void arm64_exception_base(void);
 void arm64_el3_to_el1(void);
-void arm64_fpu_exception(struct arm64_iframe_long *iframe);
-void arm64_fpu_save_state(struct thread *thread);
+void arm64_sync_exception(struct arm64_iframe_long *iframe, uint exception_flags);
 
-static inline void arm64_fpu_pre_context_switch(struct thread *thread) {
-    uint32_t cpacr = ARM64_READ_SYSREG(cpacr_el1);
-    if ((cpacr >> 20) & 3) {
-        arm64_fpu_save_state(thread);
-        cpacr &= ~(3 << 20);
-        ARM64_WRITE_SYSREG(cpacr_el1, cpacr);
-    }
-}
+/* fpu routines */
+void arm64_fpu_exception(struct arm64_iframe_long *iframe, uint exception_flags);
+void arm64_fpu_context_switch(struct thread *oldthread, struct thread *newthread);
 
 /* overridable syscall handler */
-void arm64_syscall(struct arm64_iframe_long *iframe, bool is_64bit);
-
-/* Local per-cpu cache flush routines.
- * These routines clean or invalidate the cache from the point of view
- * of a single cpu to the point of coherence.
- */
-void arm64_local_invalidate_cache_all(void);
-void arm64_local_clean_invalidate_cache_all(void);
-void arm64_local_clean_cache_all(void);
+void arm64_syscall(struct arm64_iframe_long *iframe, bool is_64bit, uint32_t syscall_imm, uint64_t pc);
 
 __END_CDECLS
 
+#endif // __ASSEMBLY__
+
+/* used in above exception_flags arguments */
+#define ARM64_EXCEPTION_FLAG_LOWER_EL (1<<0)
+#define ARM64_EXCEPTION_FLAG_ARM32    (1<<1)
