@@ -42,38 +42,3 @@ void *page_first_alloc(size_t *size_return) {
     *size_return = PAGE_SIZE;
     return page_alloc(1, PAGE_ALLOC_ANY_ARENA);
 }
-
-#if LK_DEBUGLEVEL > 1
-
-static int cmd_page_alloc(int argc, const console_cmd_args *argv);
-static void page_alloc_dump(void);
-
-STATIC_COMMAND_START
-STATIC_COMMAND("page_alloc", "page allocator debug commands", &cmd_page_alloc)
-STATIC_COMMAND_END(page_alloc);
-
-static int cmd_page_alloc(int argc, const console_cmd_args *argv) {
-    if (argc != 2) {
-notenoughargs:
-        printf("not enough arguments\n");
-usage:
-        printf("usage:\n");
-        printf("\t%s info\n", argv[0].str);
-        return -1;
-    }
-
-    if (strcmp(argv[1].str, "info") == 0) {
-        page_alloc_dump();
-    } else {
-        printf("unrecognized command\n");
-        goto usage;
-    }
-
-    return 0;
-}
-
-static void page_alloc_dump(void) {
-    dprintf(INFO, "Page allocator is based on pmm\n");
-}
-
-#endif
