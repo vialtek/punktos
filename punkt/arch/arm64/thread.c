@@ -34,26 +34,7 @@ struct context_switch_frame {
     vaddr_t r29;
 };
 
-static void initial_thread_func(void) __NO_RETURN;
-static void initial_thread_func(void) {
-    int ret;
-
-    thread_t *current_thread = get_current_thread();
-
-    LTRACEF("initial_thread_func: thread %p calling %p with arg %p\n", current_thread, current_thread->entry, current_thread->arg);
-
-    /* release the thread lock that was implicitly held across the reschedule */
-    spin_unlock(&thread_lock);
-    arch_enable_ints();
-
-    ret = current_thread->entry(current_thread->arg);
-
-    LTRACEF("initial_thread_func: thread %p exiting with %d\n", current_thread, ret);
-
-    thread_exit(ret);
-}
-
-void arch_thread_initialize(thread_t *t) {
+void arch_thread_initialize(thread_t *t, vaddr_t entry_point) {
     // create a default stack frame on the stack
     vaddr_t stack_top = (vaddr_t)t->stack + t->stack_size;
 
@@ -65,7 +46,7 @@ void arch_thread_initialize(thread_t *t) {
 
     // fill it in
     memset(frame, 0, sizeof(*frame));
-    frame->lr = (vaddr_t)&initial_thread_func;
+    frame->lr = (vaddr_t)entry_point;
 
     // set the stack pointer
     t->arch.sp = (vaddr_t)frame;

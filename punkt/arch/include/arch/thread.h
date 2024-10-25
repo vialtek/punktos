@@ -15,7 +15,7 @@ __BEGIN_CDECLS
 
 struct thread;
 
-void arch_thread_initialize(struct thread *);
+void arch_thread_initialize(struct thread *, vaddr_t entry_point);
 void arch_context_switch(struct thread *oldthread, struct thread *newthread);
 
 __END_CDECLS

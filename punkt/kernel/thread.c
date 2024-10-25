@@ -114,6 +114,21 @@ static void init_thread_struct(thread_t *t, const char *name) {
     strlcpy(t->name, name, sizeof(t->name));
 }
 
+static void initial_thread_func(void) __NO_RETURN;
+static void initial_thread_func(void)
+{
+    int ret;
+
+    /* release the thread lock that was implicitly held across the reschedule */
+    spin_unlock(&thread_lock);
+    arch_enable_ints();
+
+    thread_t *ct = get_current_thread();
+    ret = ct->entry(ct->arg);
+
+    thread_exit(ret);
+}
+
 /**
  * @brief  Create a new thread
  *
@@ -206,7 +221,7 @@ thread_t *thread_create_etc(thread_t *t, const char *name, thread_start_routine 
         t->tls[i] = current_thread->tls[i];
 
     /* set up the initial stack frame */
-    arch_thread_initialize(t);
+    arch_thread_initialize(t, (vaddr_t)&initial_thread_func);
 
     /* add it to the global thread list */
     THREAD_LOCK(state);

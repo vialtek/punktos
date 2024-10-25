@@ -20,20 +20,7 @@
 /* we're uniprocessor at this point for x86, so store a global pointer to the current thread */
 struct thread *_current_thread;
 
-static void initial_thread_func(void) __NO_RETURN;
-static void initial_thread_func(void) {
-    int ret;
-
-    /* release the thread lock that was implicitly held across the reschedule */
-    spin_unlock(&thread_lock);
-    arch_enable_ints();
-
-    ret = _current_thread->entry(_current_thread->arg);
-
-    thread_exit(ret);
-}
-
-void arch_thread_initialize(thread_t *t) {
+void arch_thread_initialize(thread_t *t, vaddr_t entry_point) {
     // create a default stack frame on the stack
     vaddr_t stack_top = (vaddr_t)t->stack + t->stack_size;
 
@@ -50,7 +37,7 @@ void arch_thread_initialize(thread_t *t) {
     frame--;
     memset(frame, 0, sizeof(*frame));
 
-    frame->rip = (vaddr_t) &initial_thread_func;
+    frame->rip = entry_point;
     frame->rflags = 0x3002; /* IF = 0, NT = 0, IOPL = 3 */
 
     // initialize the saved fpu state
