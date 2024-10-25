@@ -117,7 +117,7 @@ void arch_init(void) {
      * TODO: find a cleaner way to do this than this #define
      */
     while (secondaries_to_init > 0) {
-        __asm__ volatile("wfe");
+        arch_spinloop_pause();
     }
 #endif
 #endif // WITH_SMP

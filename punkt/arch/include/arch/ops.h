@@ -39,6 +39,12 @@ void arch_sync_cache_range(addr_t start, size_t len);
 
 void arch_idle(void);
 
+/* function to call in spinloops to idle */
+static void arch_spinloop_pause(void);
+/* function to call when an event happens that may trigger the exit from
+ * a spinloop */
+static void arch_spinloop_signal(void);
+
 __END_CDECLS
 
 #endif // !ASSEMBLY

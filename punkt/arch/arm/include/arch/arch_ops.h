@@ -80,6 +80,14 @@ static inline bool arch_in_int_handler(void) {
 #endif
 }
 
+static inline void arch_spinloop_pause(void) {
+    __asm__ volatile("wfe");
+}
+
+static inline void arch_spinloop_signal(void) {
+    __asm__ volatile("sev");
+}
+
 static inline ulong arch_cycle_count(void) {
 #if ARM_ISA_ARMV7M
 #if ENABLE_CYCLE_COUNTER

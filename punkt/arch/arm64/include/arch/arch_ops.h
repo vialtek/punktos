@@ -59,6 +59,14 @@ static inline bool arch_fiqs_disabled(void) {
     return !!state;
 }
 
+static inline void arch_spinloop_pause(void) {
+    __asm__ volatile("wfe");
+}
+
+static inline void arch_spinloop_signal(void) {
+    __asm__ volatile("sev");
+}
+
 #define mb()        __asm__ volatile("dsb sy" : : : "memory")
 #define rmb()       __asm__ volatile("dsb ld" : : : "memory")
 #define wmb()       __asm__ volatile("dsb st" : : : "memory")
