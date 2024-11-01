@@ -293,7 +293,7 @@ static void update_pml4_entry(vaddr_t vaddr, uint64_t *pml4_table, map_addr_t pa
  * @brief Allocating a new page table
  */
 static map_addr_t *alloc_page_table(paddr_t *pa_out) {
-    vm_page_t *page = pmm_alloc_page();
+    vm_page_t *page = pmm_alloc_page(PMM_ALLOC_FLAG_KMAP, pa_out);
     if (!page) {
         return NULL;
     }
