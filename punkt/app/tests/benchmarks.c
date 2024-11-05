@@ -167,75 +167,7 @@ __NO_INLINE static void arm_bench_cset_stm(void) {
 
     free(buf);
 }
-
-#if       (__CORTEX_M >= 0x03)
-__NO_INLINE static void arm_bench_multi_issue(void) {
-    ulong cycles;
-    uint32_t a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0, h = 0;
-#define ITER 1000000
-    uint count = ITER;
-    cycles = arch_cycle_count();
-    while (count--) {
-        asm volatile ("");
-        asm volatile ("add %0, %0, %0" : "=r" (a) : "r" (a));
-        asm volatile ("add %0, %0, %0" : "=r" (b) : "r" (b));
-        asm volatile ("and %0, %0, %0" : "=r" (c) : "r" (c));
-        asm volatile ("mov %0, %0" : "=r" (d) : "r" (d));
-        asm volatile ("orr %0, %0, %0" : "=r" (e) : "r" (e));
-        asm volatile ("add %0, %0, %0" : "=r" (f) : "r" (f));
-        asm volatile ("and %0, %0, %0" : "=r" (g) : "r" (g));
-        asm volatile ("mov %0, %0" : "=r" (h) : "r" (h));
-    }
-    cycles = arch_cycle_count() - cycles;
-
-    double cycles_iter = (float)cycles / ITER;
-    printf("took %lu cycles to issue 8 integer ops (%f cycles/iteration)\n", cycles, cycles_iter);
-#undef ITER
-}
-#endif // __CORTEX_M
 #endif // ARCH_ARM
-
-#if WITH_LIB_LIBM
-#include <math.h>
-
-__NO_INLINE static void bench_sincos(void) {
-    printf("touching the floating point unit\n");
-    __UNUSED volatile double _hole = sin(0);
-    volatile float input_f = 1234567.0f;
-    volatile double input_d = 1234567.0;
-
-    ulong count = arch_cycle_count();
-    __UNUSED volatile double d = sin(input_d);
-    count = arch_cycle_count() - count;
-    printf("took %lu cycles for sin()\n", count);
-
-    count = arch_cycle_count();
-    d = cos(input_d);
-    count = arch_cycle_count() - count;
-    printf("took %lu cycles for cos()\n", count);
-
-    count = arch_cycle_count();
-    __UNUSED volatile float f = sinf(input_f);
-    count = arch_cycle_count() - count;
-    printf("took %lu cycles for sinf()\n", count);
-
-    count = arch_cycle_count();
-    f = cosf(input_f);
-    count = arch_cycle_count() - count;
-    printf("took %lu cycles for cosf()\n", count);
-
-    count = arch_cycle_count();
-    d = sqrt(input_d);
-    count = arch_cycle_count() - count;
-    printf("took %lu cycles for sqrt()\n", count);
-
-    count = arch_cycle_count();
-    f = sqrtf(input_f);
-    count = arch_cycle_count() - count;
-    printf("took %lu cycles for sqrtf()\n", count);
-}
-
-#endif // WITH_LIB_LIBM
 
 int benchmarks(int argc, const console_cmd_args *argv) {
     bench_set_overhead();
@@ -250,13 +182,6 @@ int benchmarks(int argc, const console_cmd_args *argv) {
 
 #if ARCH_ARM
     arm_bench_cset_stm();
-
-#if       (__CORTEX_M >= 0x03)
-    arm_bench_multi_issue();
-#endif
-#endif
-#if WITH_LIB_LIBM
-    bench_sincos();
 #endif
 
     return NO_ERROR;
