@@ -166,6 +166,14 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe) {
     uint32_t iss = BITS(esr, 24, 0);
 
     switch (ec) {
+        case 0b000000: /* unknown reason */
+            /* this is for a lot of reasons, but most of them are undefined instructions */
+        case 0b111000: /* BRK from arm32 */
+        case 0b111100: { /* BRK from arm64 */
+            printf("Unknown or BRK #0x%04lx instruction: PC at 0x%llx\n",
+                   BITS_SHIFT(iss, 15, 0), iframe->elr);
+            break;
+        }
         case 0b000111: /* floating point */
             arm64_fpu_exception(iframe);
             return;
@@ -203,11 +211,6 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe) {
             printf("data fault: %s access from PC 0x%llx, FAR 0x%llx, iss 0x%x (DFSC 0x%lx)\n",
                    BIT(iss, 6) ? "Write" : "Read", iframe->elr, far, iss, BITS(iss, 5, 0));
             print_fault_msg(BITS(iss, 5, 0));
-            break;
-        }
-        case 0b111100: {
-            printf("BRK #0x%04lx instruction: PC at 0x%llx\n",
-                   BITS_SHIFT(iss, 15, 0), iframe->elr);
             break;
         }
         default:
