@@ -65,8 +65,6 @@ void arch_early_init(void) {
     /* enable caches here for now */
     clear_in_cr0(X86_CR0_NW | X86_CR0_CD);
 
-    memset(&system_tss, 0, sizeof(system_tss));
-
     set_global_desc(TSS_SELECTOR, &system_tss, sizeof(system_tss), 1, 0, 0, SEG_TYPE_TSS, 0, 0);
     x86_ltr(TSS_SELECTOR);
 
