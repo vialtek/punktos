@@ -43,6 +43,12 @@ map_addr_t kernel_pdp_high[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
 /* a big pile of page tables needed to map 64GB of memory into kernel space using 2MB pages */
 map_addr_t kernel_linear_map_pdp[(64ULL*GB) / (2*MB)];
 
+/* which of the above variables is the top level page table */
+#define KERNEL_PT kernel_pml4
+
+/* kernel base top level page table in physical space */
+static const paddr_t kernel_pt_phys = (vaddr_t)KERNEL_PT - KERNEL_BASE;
+
 /**
  * @brief  check if the virtual address is aligned and canonical
  *
@@ -667,26 +673,71 @@ void x86_mmu_init(void) {
 }
 
 /*
- * x86-64 does not support multiple address spaces at the moment, so fail if these apis
- * are used for it.
+ * Fill in the high level x86 arch aspace structure and allocating a top level page table.
  */
 status_t arch_mmu_init_aspace(arch_aspace_t * const aspace, const vaddr_t base, const size_t size, const uint flags) {
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(aspace->magic != ARCH_ASPACE_MAGIC);
+
+    LTRACEF("aspace %p, base 0x%lx, size 0x%zx, flags 0x%x\n", aspace, base, size, flags);
+
+    aspace->magic = ARCH_ASPACE_MAGIC;
+    aspace->flags = flags;
+    aspace->base = base;
+    aspace->size = size;
 
     if ((flags & ARCH_ASPACE_FLAG_KERNEL) == 0) {
-        return ERR_NOT_SUPPORTED;
+        aspace->pt_phys = kernel_pt_phys;
+        aspace->pt_virt = (pt_entry_t*)X86_PHYS_TO_VIRT(aspace->pt_phys);
+        LTRACEF("kernel aspace: pt phys 0x%lx, virt %p\n", aspace->pt_phys, aspace->pt_virt);
+    } else {
+        /* allocate a top level page table for the new address space */
+        paddr_t pa;
+        aspace->pt_virt = (pt_entry_t*)pmm_alloc_kpage();
+        if (!aspace->pt_virt) {
+            TRACEF("error allocating top level page directory\n");
+            return ERR_NO_MEMORY;
+        }
+        aspace->pt_phys = pa;
+
+        /* zero out the user space half of it */
+        memset(aspace->pt_virt, 0, sizeof(pt_entry_t) * NO_OF_PT_ENTRIES / 2);
+
+        /* copy the kernel portion of it from the master kernel pt */
+        memcpy(aspace->pt_virt + NO_OF_PT_ENTRIES / 2, &KERNEL_PT[NO_OF_PT_ENTRIES / 2],
+               sizeof(pt_entry_t) * NO_OF_PT_ENTRIES / 2);
+
+        LTRACEF("user aspace: pt phys 0x%lx, virt %p\n", aspace->pt_phys, aspace->pt_virt);
     }
+
+    aspace->io_bitmap_ptr = NULL;
+    spin_lock_init(&aspace->io_bitmap_lock);
 
     return NO_ERROR;
 }
 
 status_t arch_mmu_destroy_aspace(arch_aspace_t *aspace) {
+    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
+
+    if (aspace->io_bitmap_ptr) {
+        free(aspace->io_bitmap_ptr);
+    }
+
+    vm_page_t *page = paddr_to_vm_page(aspace->pt_phys);
+    DEBUG_ASSERT(page);
+    pmm_free_page(page);
+
+    aspace->magic = 0;
+
     return NO_ERROR;
 }
 
 void arch_mmu_context_switch(arch_aspace_t *aspace) {
     if (aspace != NULL) {
-        PANIC_UNIMPLEMENTED;
+        DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
+        x86_set_cr3(aspace->pt_phys);
+    } else {
+        x86_set_cr3(kernel_pt_phys);
     }
 }
 

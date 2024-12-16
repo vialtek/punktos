@@ -32,9 +32,6 @@
 
 #define PAGE_SIZE       4096
 #define PAGE_DIV_SHIFT      12
-
-#if ARCH_X86_64
-/* PAE mode */
 #define X86_PDPT_ADDR_MASK  (0x00000000ffffffe0ul)
 #define X86_PG_FRAME        (0xfffffffffffff000ul)
 #define X86_PHY_ADDR_MASK   (0x000ffffffffffffful)
@@ -44,14 +41,8 @@
 #define PAGE_OFFSET_MASK_4KB    (0x0000000000000ffful)
 #define PAGE_OFFSET_MASK_2MB    (0x00000000001ffffful)
 #define X86_MMU_PG_NX       (1ULL << 63)
-
-#if ARCH_X86_64
 #define X86_PAGING_LEVELS   4
 #define PML4_SHIFT      39
-#else
-#define X86_PAGING_LEVELS   3
-#endif
-
 #define PDP_SHIFT       30
 #define PD_SHIFT        21
 #define PT_SHIFT        12
@@ -59,21 +50,9 @@
 #define PDPT_ADDR_OFFSET    2
 #define NO_OF_PT_ENTRIES    512
 
-#else
-/* non PAE mode */
-#define X86_PG_FRAME        (0xfffff000)
-#define X86_FLAGS_MASK          (0x00000fff)
-#define X86_PTE_NOT_PRESENT     (0xfffffffe)
-#define X86_4MB_PAGE_FRAME      (0xffc00000)
-#define PAGE_OFFSET_MASK_4KB    (0x00000fff)
-#define PAGE_OFFSET_MASK_4MB    (0x003fffff)
-#define NO_OF_PT_ENTRIES    1024
-#define X86_PAGING_LEVELS   2
-#define PD_SHIFT        22
-#define PT_SHIFT        12
-#define ADDR_OFFSET     10
-
-#endif
+/* on x86-64 physical memory is mapped at the base of the kernel address space */
+#define X86_PHYS_TO_VIRT(x)     ((uintptr_t)(x) + KERNEL_ASPACE_BASE)
+#define X86_VIRT_TO_PHYS(x)     ((uintptr_t)(x) - KERNEL_ASPACE_BASE)
 
 /* C defines below */
 #ifndef ASSEMBLY
@@ -88,12 +67,9 @@ enum page_table_levels {
     PF_L,
     PT_L,
     PD_L,
-#if ARCH_X86_64
     PDP_L,
     PML4_L
-#endif
 };
-
 
 struct map_range {
     vaddr_t start_vaddr;
@@ -101,13 +77,9 @@ struct map_range {
     uint32_t size;
 };
 
-#if ARCH_X86_64
+typedef uint64_t pt_entry_t;
 typedef uint64_t map_addr_t;
 typedef uint64_t arch_flags_t;
-#else
-typedef uint32_t map_addr_t;
-typedef uint32_t arch_flags_t;
-#endif
 
 void x86_mmu_early_init(void);
 void x86_mmu_init(void);
