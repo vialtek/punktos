@@ -14,9 +14,6 @@ KERNEL_ASPACE_BASE ?= 0xffffff8000000000UL # -512GB
 KERNEL_ASPACE_SIZE ?= 0x0000008000000000UL
 USER_ASPACE_BASE   ?= 0x0000000000000000UL
 USER_ASPACE_SIZE   ?= 0x0000800000000000UL
-SUBARCH_DIR := $(LOCAL_DIR)/64
-
-SUBARCH_BUILDDIR := $(call TOBUILDDIR,$(SUBARCH_DIR))
 
 GLOBAL_DEFINES += \
 	ARCH_$(SUBARCH)=1 \
@@ -29,15 +26,13 @@ GLOBAL_DEFINES += \
 	X86_WITH_FPU=1
 
 MODULE_SRCS += \
-	$(SUBARCH_DIR)/start.S \
-\
-	$(SUBARCH_DIR)/asm.S \
-	$(SUBARCH_DIR)/exceptions.S \
-	$(SUBARCH_DIR)/mmu.c \
-	$(SUBARCH_DIR)/ops.S \
-	$(SUBARCH_DIR)/user_copy.S \
-	$(SUBARCH_DIR)/uspace_entry.S \
-\
+	$(LOCAL_DIR)/start.S \
+	$(LOCAL_DIR)/asm.S \
+	$(LOCAL_DIR)/exceptions.S \
+	$(LOCAL_DIR)/mmu.c \
+	$(LOCAL_DIR)/ops.S \
+	$(LOCAL_DIR)/user_copy.S \
+	$(LOCAL_DIR)/uspace_entry.S \
 	$(LOCAL_DIR)/arch.c \
 	$(LOCAL_DIR)/cache.c \
 	$(LOCAL_DIR)/descriptor.c \
@@ -83,14 +78,14 @@ ARCH_OPTFLAGS := -O2
 LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) -print-libgcc-file-name)
 $(warning LIBGCC = $(LIBGCC))
 
-USER_LINKER_SCRIPT := $(SUBARCH_DIR)/user.ld
-LINKER_SCRIPT += $(SUBARCH_BUILDDIR)/kernel.ld
+USER_LINKER_SCRIPT := $(LOCAL_DIR)/user.ld
+LINKER_SCRIPT += $(BUILDDIR)/kernel.ld
 
 # potentially generated files that should be cleaned out with clean make rule
-GENERATED += $(SUBARCH_BUILDDIR)/kernel.ld
+GENERATED += $(BUILDDIR)/kernel.ld
 
 # rules for generating the linker scripts
-$(SUBARCH_BUILDDIR)/kernel.ld: $(SUBARCH_DIR)/kernel.ld $(wildcard arch/*.ld)
+$(BUILDDIR)/kernel.ld: $(LOCAL_DIR)/kernel.ld $(wildcard arch/*.ld)
 	@echo generating $@
 	@$(MKDIR)
 	$(NOECHO)sed "s/%MEMBASE%/$(MEMBASE)/;s/%MEMSIZE%/$(MEMSIZE)/;s/%KERNEL_BASE%/$(KERNEL_BASE)/;s/%KERNEL_LOAD_OFFSET%/$(KERNEL_LOAD_OFFSET)/" < $< > $@.tmp
