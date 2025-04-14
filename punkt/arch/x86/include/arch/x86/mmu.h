@@ -83,6 +83,7 @@ typedef uint64_t arch_flags_t;
 
 void x86_mmu_early_init(void);
 void x86_mmu_init(void);
+void x86_mmu_early_init_percpu(void);
 
 __END_CDECLS
 

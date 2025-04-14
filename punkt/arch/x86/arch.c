@@ -19,7 +19,6 @@
 #include <vm/vm.h>
 #include <platform.h>
 #include <sys/types.h>
-#include <string.h>
 
 /* Describe how start.S sets up the MMU.
  * These data structures are later used by vm routines to lookup pointers
@@ -58,19 +57,31 @@ __SECTION(".data") uint32_t _multiboot_info;
 /* main tss */
 static tss_t system_tss __ALIGNED(16);
 
+void x86_early_init_percpu(void) {
+    // enable caches
+    clear_in_cr0(X86_CR0_NW | X86_CR0_CD);
+
+    // configure the system TSS
+    // XXX move to a per cpu TSS in the percpu structure
+    const uint selector = TSS_SELECTOR_BASE + 8 * arch_curr_cpu_num();
+    x86_set_gdt_descriptor(selector, &system_tss, sizeof(system_tss), 1, 0, 0, SEG_TYPE_TSS, 0, 0);
+    x86_ltr(selector);
+
+    /* load the kernel's IDT */
+    asm("lidt _idtr");
+
+    x86_mmu_early_init_percpu();
+    x86_fpu_early_init_percpu();
+}
+
 /* early initialization of the system, on the boot cpu, usually before any sort of
  * printf output is available.
  */
 void arch_early_init(void) {
-    /* enable caches here for now */
-    clear_in_cr0(X86_CR0_NW | X86_CR0_CD);
-
-    set_global_desc(TSS_SELECTOR, &system_tss, sizeof(system_tss), 1, 0, 0, SEG_TYPE_TSS, 0, 0);
-    x86_ltr(TSS_SELECTOR);
-
     x86_feature_early_init();
     x86_mmu_early_init();
     x86_fpu_early_init();
+    x86_early_init_percpu();
 }
 
 /* later initialization pass, once the main kernel is initialized and scheduling has begun */
