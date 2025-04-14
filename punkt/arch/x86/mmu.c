@@ -24,6 +24,11 @@
 #include <sys/types.h>
 
 #define LOCAL_TRACE 0
+#define TRACE_CONTEXT_SWITCH 0
+
+// TODO:
+// - proper tlb flush (local and SMP)
+// - synchronization of top level page tables for user space aspaces
 
 /* Address width including virtual/physical address*/
 static uint8_t vaddr_width = 0;
@@ -36,6 +41,9 @@ static bool supports_pcid;
 map_addr_t kernel_pml4[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
 map_addr_t kernel_pdp[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE); /* temporary */
 map_addr_t kernel_pte[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
+
+/* saved physical address of the kernel_pml4 table */
+paddr_t kernel_pml4_phys;
 
 /* top level pdp needed to map the -512GB..0 space */
 map_addr_t kernel_pdp_high[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
@@ -89,6 +97,11 @@ static bool x86_mmu_check_paddr(const paddr_t paddr) {
     uint64_t max_paddr = ((uint64_t)1ull << paddr_width) - 1;
 
     return paddr <= max_paddr;
+}
+
+/* is the address within the aspace */
+static bool is_valid_vaddr(const arch_aspace_t *aspace, vaddr_t vaddr) {
+    return (vaddr >= aspace->base && vaddr <= aspace->base + aspace->size - 1);
 }
 
 static inline uint64_t get_pfn_from_pte(uint64_t pte) {
@@ -523,16 +536,13 @@ int arch_mmu_unmap(arch_aspace_t * const aspace, const vaddr_t vaddr, const uint
 
     DEBUG_ASSERT(aspace);
 
-    if (!(x86_mmu_check_vaddr(vaddr)))
+    if (!is_valid_vaddr(aspace, vaddr))
         return ERR_INVALID_ARGS;
 
     if (count == 0)
         return NO_ERROR;
 
-    DEBUG_ASSERT(x86_get_cr3());
-    paddr_t current_cr3_val = x86_get_cr3();
-
-    return (x86_mmu_unmap(paddr_to_kvaddr(current_cr3_val), vaddr, count));
+    return (x86_mmu_unmap(aspace->cr3, vaddr, count));
 }
 
 /**
@@ -579,13 +589,12 @@ status_t arch_mmu_query(arch_aspace_t * const aspace, const vaddr_t vaddr, paddr
     if (!paddr)
         return ERR_INVALID_ARGS;
 
-    DEBUG_ASSERT(x86_get_cr3());
-    paddr_t current_cr3_val = (addr_t)x86_get_cr3();
-    uint64_t *cr3_virt = paddr_to_kvaddr(current_cr3_val);
+    if (!is_valid_vaddr(aspace, vaddr))
+        return ERR_INVALID_ARGS;
 
     arch_flags_t ret_flags;
     uint32_t ret_level;
-    status_t stat = x86_mmu_get_mapping(cr3_virt, vaddr, &ret_level, &ret_flags, paddr);
+    status_t stat = x86_mmu_get_mapping(aspace->cr3, vaddr, &ret_level, &ret_flags, paddr);
     if (stat)
         return stat;
 
@@ -608,50 +617,53 @@ int arch_mmu_map(arch_aspace_t *const aspace, const vaddr_t vaddr, const paddr_t
     if ((!x86_mmu_check_paddr(paddr)))
         return ERR_INVALID_ARGS;
 
-    if (!x86_mmu_check_vaddr(vaddr))
+    if (!is_valid_vaddr(aspace, vaddr))
         return ERR_INVALID_ARGS;
 
     if (count == 0)
         return NO_ERROR;
-
-    DEBUG_ASSERT(x86_get_cr3());
-    addr_t current_cr3_val = (addr_t)x86_get_cr3();
 
     struct map_range range;
     range.start_vaddr = vaddr;
     range.start_paddr = paddr;
     range.size = count * PAGE_SIZE;
 
-    return (x86_mmu_map_range(paddr_to_kvaddr(current_cr3_val), &range, flags));
+    return (x86_mmu_map_range(aspace->cr3, &range, flags));
 }
 
-void x86_mmu_early_init(void) {
-    volatile uint64_t efer_msr, cr0, cr4;
-
-    /* Set WP bit in CR0*/
-    cr0 = x86_get_cr0();
+void x86_mmu_early_init_percpu(void) {
+    /* Set WP bit in CR0 */
+    uint64_t cr0 = x86_get_cr0();
     cr0 |= X86_CR0_WP;
     x86_set_cr0(cr0);
 
-    /* Setting the SMEP & SMAP bit in CR4 */
-    cr4 = x86_get_cr4();
-    if (x86_feature_test(X86_FEATURE_SMEP))
-        cr4 |= X86_CR4_SMEP;
-    if (x86_feature_test(X86_FEATURE_SMAP))
-        cr4 |= X86_CR4_SMAP;
-    x86_set_cr4(cr4);
+    /* Set some mmu control bits in CR4 */
+    uint32_t bits = 0;
+    bits |= x86_feature_test(X86_FEATURE_PGE) ? X86_CR4_PGE : 0;
+    bits |= x86_feature_test(X86_FEATURE_PSE) ? X86_CR4_PSE : 0;
+    bits |= x86_feature_test(X86_FEATURE_SMEP) ? X86_CR4_SMEP : 0;
+    /* for now, we dont support SMAP due to some tests that assume they can access user space */
+    // bits |= x86_feature_test(X86_FEATURE_SMAP) ? X86_CR4_SMAP : 0;
+    if (bits) {
+        /* don't touch cr4 unless we need to, early cpus will fault if its not implemented */
+        uint32_t cr4 = x86_get_cr4();
+        cr4 |= bits;
+        x86_set_cr4(cr4);
+    }
 
-    /* Set NXE bit in MSR_EFER*/
-    efer_msr = read_msr(X86_MSR_IA32_EFER);
+    /* Set NXE bit in MSR_EFER */
+    uint64_t efer_msr = read_msr(X86_MSR_IA32_EFER);
     efer_msr |= X86_EFER_NXE;
     write_msr(X86_MSR_IA32_EFER, efer_msr);
+}
 
+void x86_mmu_early_init(void) {
     /* getting the address width from CPUID instr */
     paddr_width = x86_get_paddr_width();
     vaddr_width = x86_get_vaddr_width();
 
     /* check to see if we support huge (1GB) and invpcid instruction */
-    supports_huge_pages = x86_feature_test(X86_FEATURE_HUGE_PAGE);
+    supports_huge_pages = x86_feature_test(X86_FEATURE_PG1G);
     supports_invpcid = x86_feature_test(X86_FEATURE_INVPCID);
     supports_pcid = x86_feature_test(X86_FEATURE_PCID);
 
@@ -659,7 +671,7 @@ void x86_mmu_early_init(void) {
     kernel_pml4[0] = 0;
 
     /* tlb flush */
-    x86_set_cr3(x86_get_cr3());
+    x86_set_cr3(kernel_pml4_phys);
 }
 
 void x86_mmu_init(void) {
@@ -673,68 +685,79 @@ void x86_mmu_init(void) {
  */
 status_t arch_mmu_init_aspace(arch_aspace_t * const aspace, const vaddr_t base, const size_t size, const uint flags) {
     DEBUG_ASSERT(aspace);
-    DEBUG_ASSERT(aspace->magic != ARCH_ASPACE_MAGIC);
 
-    LTRACEF("aspace %p, base 0x%lx, size 0x%zx, flags 0x%x\n", aspace, base, size, flags);
+    LTRACEF("aspace %p, base %#lx, size %#zx, flags %#x\n", aspace, base, size, flags);
 
-    aspace->magic = ARCH_ASPACE_MAGIC;
+    /* validate that the base + size is sane and doesn't wrap */
+    DEBUG_ASSERT(size > PAGE_SIZE);
+    DEBUG_ASSERT(base + size - 1 > base);
+
     aspace->flags = flags;
-    aspace->base = base;
-    aspace->size = size;
+    if (flags & ARCH_ASPACE_FLAG_KERNEL) {
+        /* at the moment we can only deal with address spaces as globally defined */
+        DEBUG_ASSERT(base == KERNEL_ASPACE_BASE);
+        DEBUG_ASSERT(size == KERNEL_ASPACE_SIZE);
 
-    if ((flags & ARCH_ASPACE_FLAG_KERNEL) == 0) {
-        aspace->pt_phys = kernel_pt_phys;
-        aspace->pt_virt = (pt_entry_t*)X86_PHYS_TO_VIRT(aspace->pt_phys);
-        LTRACEF("kernel aspace: pt phys 0x%lx, virt %p\n", aspace->pt_phys, aspace->pt_virt);
+        aspace->base = base;
+        aspace->size = size;
+        aspace->cr3 = kernel_pml4;
+        aspace->cr3_phys = kernel_pml4_phys;
     } else {
-        /* allocate a top level page table for the new address space */
-        paddr_t pa;
-        aspace->pt_virt = (pt_entry_t*)pmm_alloc_kpage();
-        if (!aspace->pt_virt) {
-            TRACEF("error allocating top level page directory\n");
+        DEBUG_ASSERT(base == USER_ASPACE_BASE);
+        DEBUG_ASSERT(size == USER_ASPACE_SIZE);
+
+        aspace->base = base;
+        aspace->size = size;
+
+        map_addr_t *va = pmm_alloc_kpages(1, NULL);
+        if (!va) {
             return ERR_NO_MEMORY;
         }
-        aspace->pt_phys = pa;
 
-        /* zero out the user space half of it */
-        memset(aspace->pt_virt, 0, sizeof(pt_entry_t) * NO_OF_PT_ENTRIES / 2);
+        aspace->cr3 = va;
+        aspace->cr3_phys = vaddr_to_paddr(aspace->cr3);
 
-        /* copy the kernel portion of it from the master kernel pt */
-        memcpy(aspace->pt_virt + NO_OF_PT_ENTRIES / 2, &KERNEL_PT[NO_OF_PT_ENTRIES / 2],
-               sizeof(pt_entry_t) * NO_OF_PT_ENTRIES / 2);
+        /* copy the top entries from the kernel top table */
+        memcpy(aspace->cr3 + NO_OF_PT_ENTRIES/2, kernel_pml4 + NO_OF_PT_ENTRIES/2, PAGE_SIZE/2);
 
-        LTRACEF("user aspace: pt phys 0x%lx, virt %p\n", aspace->pt_phys, aspace->pt_virt);
+        /* zero out the rest */
+        memset(aspace->cr3, 0, PAGE_SIZE/2);
     }
-
-    aspace->io_bitmap_ptr = NULL;
-    spin_lock_init(&aspace->io_bitmap_lock);
 
     return NO_ERROR;
 }
 
 status_t arch_mmu_destroy_aspace(arch_aspace_t *aspace) {
-    DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
-
-    if (aspace->io_bitmap_ptr) {
-        free(aspace->io_bitmap_ptr);
+    // TODO: assert that we're not active on any cpus
+    if (aspace->flags & ARCH_ASPACE_FLAG_KERNEL) {
+        // can't destroy the kernel aspace
+        panic("attempt to destroy kernel aspace\n");
+        return ERR_NOT_ALLOWED;
     }
 
-    vm_page_t *page = paddr_to_vm_page(aspace->pt_phys);
-    DEBUG_ASSERT(page);
-    pmm_free_page(page);
-
-    aspace->magic = 0;
+    // free the page table
+    pmm_free_kpages(aspace->cr3, 1);
 
     return NO_ERROR;
 }
 
-void arch_mmu_context_switch(arch_aspace_t *aspace) {
-    if (aspace != NULL) {
-        DEBUG_ASSERT(aspace->magic == ARCH_ASPACE_MAGIC);
-        x86_set_cr3(aspace->pt_phys);
+void arch_mmu_context_switch(arch_aspace_t *new_aspace) {
+    if (TRACE_CONTEXT_SWITCH)
+        TRACEF("aspace %p\n", new_aspace);
+
+    uint64_t cr3;
+    if (new_aspace) {
+        DEBUG_ASSERT((new_aspace->flags & ARCH_ASPACE_FLAG_KERNEL) == 0);
+
+        cr3 = new_aspace->cr3_phys;
     } else {
-        x86_set_cr3(kernel_pt_phys);
+        cr3 = kernel_pml4_phys;
     }
+    if (TRACE_CONTEXT_SWITCH) {
+        TRACEF("cr3 %#llx\n", cr3);
+    }
+
+    x86_set_cr3(cr3);
 }
 
 bool arch_mmu_supports_nx_mappings(void) { return true; }

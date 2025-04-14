@@ -8,6 +8,7 @@
 #pragma once
 
 #include <lk/compiler.h>
+#include <sys/types.h>
 #include <arch/x86/mmu.h>
 #include <kernel/spinlock.h>
 
@@ -19,9 +20,8 @@ struct arch_aspace {
     /* magic value for use-after-free detection */
     uint32_t magic;
 
-    /* pointer to the translation table */
-    paddr_t pt_phys;
-    pt_entry_t *pt_virt;
+    paddr_t cr3_phys;
+    map_addr_t *cr3;
 
     uint flags;
 
