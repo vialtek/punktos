@@ -6,7 +6,6 @@
  * https://opensource.org/licenses/MIT
  */
 #include <lk/debug.h>
-#include <assert.h>
 #include <limits.h>
 #include <printf.h>
 #include <stdarg.h>
@@ -14,6 +13,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <platform/debug.h>
+
+// The main printf engine and all of the printf wrapper routines.
+// It's important these are all in the same file, or at least all
+// compiled with the same flags concerning floating point support.
 
 #if WITH_NO_FP
 #define FLOAT_PRINTF 0
@@ -66,7 +69,9 @@ static int _vsnprintf_output(const char *str, size_t len, void *state) {
         count++;
     }
 
-    return count;
+    // Return the count of the number of bytes that would be written even if the buffer
+    // wasn't large enough.
+    return (int)count;
 }
 
 int vsnprintf(char *str, size_t len, const char *fmt, va_list ap) {
@@ -78,12 +83,46 @@ int vsnprintf(char *str, size_t len, const char *fmt, va_list ap) {
     args.pos = 0;
 
     wlen = _printf_engine(&_vsnprintf_output, (void *)&args, fmt, ap);
-    if (args.pos >= len)
+    if (len == 0) {
+        // do nothing, we can't null terminate the output
+    } else if (args.pos >= len) {
         str[len-1] = '\0';
-    else
+    } else {
         str[wlen] = '\0';
+    }
     return wlen;
 }
+
+int vfprintf(FILE *fp, const char *fmt, va_list ap) {
+    return _printf_engine(&_fprintf_output_func, (void *)fp, fmt, ap);
+}
+
+int fprintf(FILE *fp, const char *fmt, ...) {
+    va_list ap;
+    int err;
+
+    va_start(ap, fmt);
+    err = vfprintf(fp, fmt, ap);
+    va_end(ap);
+    return err;
+}
+
+#if !DISABLE_DEBUG_OUTPUT
+int printf(const char *fmt, ...) {
+    va_list ap;
+    int err;
+
+    va_start(ap, fmt);
+    err = vfprintf(stdout, fmt, ap);
+    va_end(ap);
+
+    return err;
+}
+
+int vprintf(const char *fmt, va_list ap) {
+    return vfprintf(stdout, fmt, ap);
+}
+#endif // !DISABLE_DEBUG_OUTPUT
 
 #define LONGFLAG       0x00000001
 #define LONGLONGFLAG   0x00000002
@@ -102,10 +141,10 @@ int vsnprintf(char *str, size_t len, const char *fmt, va_list ap) {
 
 __NO_INLINE static char *longlong_to_string(char *buf, unsigned long long n, size_t len, uint flag, char *signchar) {
     size_t pos = len;
-    int negative = 0;
+    bool negative = false;
 
     if ((flag & SIGNEDFLAG) && (long long)n < 0) {
-        negative = 1;
+        negative = true;
         n = -n;
     }
 
@@ -113,22 +152,23 @@ __NO_INLINE static char *longlong_to_string(char *buf, unsigned long long n, siz
 
     /* only do the math if the number is >= 10 */
     while (n >= 10) {
-        int digit = n % 10;
+        unsigned int digit = n % 10;
 
         n /= 10;
 
-        buf[--pos] = digit + '0';
+        buf[--pos] = (char)digit + '0';
     }
-    buf[--pos] = n + '0';
+    buf[--pos] = (char)n + '0';
 
-    if (negative)
+    if (negative) {
         *signchar = '-';
-    else if ((flag & SHOWSIGNFLAG))
+    } else if ((flag & SHOWSIGNFLAG)) {
         *signchar = '+';
-    else if ((flag & BLANKPOSFLAG))
+    } else if ((flag & BLANKPOSFLAG)) {
         *signchar = ' ';
-    else
+    } else {
         *signchar = '\0';
+    }
 
     return &buf[pos];
 }
@@ -183,7 +223,7 @@ __NO_INLINE static size_t exponent_to_string(char *buf, int32_t exponent) {
     do {
         uint digit = (uint32_t)exponent % 10;
 
-        buf[--i] = digit + '0';
+        buf[--i] = (char)digit + '0';
 
         exponent /= 10;
     } while (exponent != 0);
@@ -333,7 +373,7 @@ __NO_INLINE static char *double_to_hexstring(char *buf, size_t len, double d, ui
          * 0X1.FFFFFFFFFFFFFP+1023
          * 0x1.FFFFFFFFFFFFFP+1023
          */
-        int exponent_signed = exponent - 1023;
+        int32_t exponent_signed = exponent - 1023;
 
         /* implicit 1. */
         if (flag & CAPSFLAG) OUTSTR("0X1");
@@ -365,7 +405,7 @@ __NO_INLINE static char *double_to_hexstring(char *buf, size_t len, double d, ui
         }
 
         /* handle the exponent */
-        buf[pos++] = (flag & CAPSFLAG) ? 'P' : 'p';
+        OUT((flag & CAPSFLAG) ? 'P' : 'p');
         pos += exponent_to_string(&buf[pos], exponent_signed);
     }
 
@@ -616,7 +656,6 @@ _output_string:
             /* output the string */
             OUTPUT_STRING(s, string_len);
         }
-        continue;
     }
 
 #undef OUTPUT_STRING
